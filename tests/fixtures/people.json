@@ -1,0 +1,4 @@
+[
+  { "id": 1, "user": { "name": "Ada" }, "score": 98.5, "active": true },
+  { "id": 2, "user": { "name": "Grace" }, "score": 87.25, "active": false }
+]
