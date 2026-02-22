@@ -20,6 +20,9 @@ This generates HTML docs at `target/doc/rust_data_processing/index.html`.
   - Observability: `IngestionObserver`, `IngestionSeverity`, `StdErrObserver`, `FileObserver`, `CompositeObserver`
 - `rust_data_processing::processing`
   - In-memory transformations: `filter`, `map`, `reduce`, `ReduceOp`
+- `rust_data_processing::execution`
+  - Execution engine for processing pipelines: `ExecutionEngine`, `ExecutionOptions`
+  - Monitoring: `ExecutionObserver`, `ExecutionEvent`, `ExecutionMetrics`
 - `rust_data_processing::error`
   - Errors/results: `IngestionError`, `IngestionResult<T>`
 
@@ -233,6 +236,68 @@ let mapped = map(&filtered, |row| {
 
 let sum = reduce(&mapped, "score", ReduceOp::Sum).unwrap();
 assert_eq!(sum, Value::Float64(11.0));
+```
+
+## Execution engine (Epic 1 / Story 1.3)
+
+For parallel execution (and built-in throttling + metrics), use `rust_data_processing::execution`.
+
+- **Parallel ops**:
+  - `ExecutionEngine::filter_parallel(&DataSet, predicate) -> DataSet`
+  - `ExecutionEngine::map_parallel(&DataSet, mapper) -> DataSet`
+- **Throttling / resource management**:
+  - `ExecutionOptions { num_threads, chunk_size, max_in_flight_chunks }`
+- **Monitoring**:
+  - Subscribe to `ExecutionEvent`s via `ExecutionObserver`
+  - Read counters/timings via `ExecutionEngine::metrics().snapshot()`
+
+Example:
+
+```rust
+use std::sync::Arc;
+
+use rust_data_processing::execution::{ExecutionEngine, ExecutionOptions, StdErrExecutionObserver};
+use rust_data_processing::processing::ReduceOp;
+use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
+
+let schema = Schema::new(vec![
+    Field::new("id", DataType::Int64),
+    Field::new("active", DataType::Bool),
+    Field::new("score", DataType::Float64),
+]);
+
+let ds = DataSet::new(
+    schema,
+    vec![
+        vec![Value::Int64(1), Value::Bool(true), Value::Float64(10.0)],
+        vec![Value::Int64(2), Value::Bool(false), Value::Float64(20.0)],
+        vec![Value::Int64(3), Value::Bool(true), Value::Null],
+    ],
+);
+
+let engine = ExecutionEngine::new(ExecutionOptions {
+    num_threads: Some(4),
+    chunk_size: 1_024,
+    max_in_flight_chunks: 4,
+})
+.with_observer(Arc::new(StdErrExecutionObserver::default()));
+
+let active_idx = ds.schema.index_of("active").unwrap();
+let filtered = engine.filter_parallel(&ds, |row| matches!(row.get(active_idx), Some(Value::Bool(true))));
+
+let mapped = engine.map_parallel(&filtered, |row| {
+    let mut out = row.to_vec();
+    if let Some(Value::Float64(v)) = out.get(2) {
+        out[2] = Value::Float64(v * 1.1);
+    }
+    out
+});
+
+let sum = engine.reduce(&mapped, "score", ReduceOp::Sum).unwrap();
+assert_eq!(sum, Value::Float64(11.0));
+
+let snap = engine.metrics().snapshot();
+println!("rows_processed={}", snap.rows_processed);
 ```
 
 ### Benchmarks (Story 1.2.5)

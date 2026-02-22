@@ -121,6 +121,44 @@ let sum = reduce(&mapped, "score", ReduceOp::Sum).unwrap();
 assert_eq!(sum, Value::Float64(11.0));
 ```
 
+### Execution engine (parallel pipelines) (Story 1.3)
+
+If you want **parallel filter/map**, plus **throttling** and **real-time metrics**, use `rust_data_processing::execution`:
+
+```rust
+use rust_data_processing::execution::{ExecutionEngine, ExecutionOptions};
+use rust_data_processing::processing::ReduceOp;
+use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
+
+let schema = Schema::new(vec![
+    Field::new("id", DataType::Int64),
+    Field::new("active", DataType::Bool),
+    Field::new("score", DataType::Float64),
+]);
+let ds = DataSet::new(
+    schema,
+    vec![
+        vec![Value::Int64(1), Value::Bool(true), Value::Float64(10.0)],
+        vec![Value::Int64(2), Value::Bool(false), Value::Float64(20.0)],
+        vec![Value::Int64(3), Value::Bool(true), Value::Null],
+    ],
+);
+
+let engine = ExecutionEngine::new(ExecutionOptions {
+    num_threads: Some(4),
+    chunk_size: 1_024,
+    max_in_flight_chunks: 4,
+});
+
+let active_idx = ds.schema.index_of("active").unwrap();
+let filtered = engine.filter_parallel(&ds, |row| matches!(row.get(active_idx), Some(Value::Bool(true))));
+let mapped = engine.map_parallel(&filtered, |row| row.to_vec());
+let sum = engine.reduce(&mapped, "score", ReduceOp::Sum).unwrap();
+
+let metrics = engine.metrics().snapshot();
+println!("rows_processed={}, elapsed={:?}", metrics.rows_processed, metrics.elapsed);
+```
+
 ### More examples: reduce ops and missing columns
 
 ```rust
