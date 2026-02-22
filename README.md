@@ -6,6 +6,21 @@ Small Rust library for ingesting common file formats (CSV / JSON / Parquet, with
 - **API docs**: generate with `cargo doc` (see below)
 - **Status**: library APIs are in `src/lib.rs`; the binary (`src/main.rs`) is currently just a placeholder.
 
+## Platform support
+
+- **Supported OSes**: Windows, Linux, and macOS.
+- **Works out of the box**: the library is written in portable Rust (no OS-specific runtime assumptions).
+- **Build prerequisites**:
+  - **macOS**: install Xcode Command Line Tools (`xcode-select --install`) for the system linker/C toolchain.
+  - **Linux**: install a basic build toolchain (e.g. GCC/Clang via your distro’s `build-essential` equivalent).
+  - **Windows**: see [Development on Windows (toolchain + linker)](#development-on-windows-toolchain--linker).
+
+  Parquet support pulls in native compression dependencies (e.g. `zstd-sys`); Cargo will build them automatically once a C toolchain is available.
+
+- **Benchmarks**:
+  - `cargo bench --bench pipelines` is cross-platform.
+  - `benchmarks.ps1` is a Windows/PowerShell convenience wrapper; on Linux/macOS you can run it via `pwsh` or just run `cargo bench` directly.
+
 ## Quick start (library usage)
 
 Add to your `Cargo.toml` (example):

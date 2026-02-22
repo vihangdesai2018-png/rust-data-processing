@@ -105,8 +105,12 @@ function Parse-DurationToMs([string]$s) {
   if ($u.EndsWith('ms')) { return $num }
   if ($u.EndsWith('ns')) { return $num / 1000000.0 }
   if ($u.EndsWith('us')) { return $num / 1000.0 }
-  if ($u.EndsWith('µs') -or $u.EndsWith('μs')) { return $num / 1000.0 }
-  if ($u.EndsWith('s')) { return $num * 1000.0 }
+  if ($u.EndsWith('s')) {
+    # Criterion prints microseconds using a unicode micro prefix + 's'. The exact micro character can vary
+    # by terminal/font/encoding, so treat any "<non-ascii>s" (or any "Xs" that isn't ms/ns/us) as µs.
+    if ($u -eq 's') { return $num * 1000.0 }
+    return $num / 1000.0
+  }
 
   throw "Unhandled unit: '$unitRaw'"
 }
