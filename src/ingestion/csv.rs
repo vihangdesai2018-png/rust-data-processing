@@ -5,6 +5,10 @@ use std::path::Path;
 use crate::error::{IngestionError, IngestionResult};
 use crate::types::{DataSet, DataType, Schema, Value};
 
+use polars::prelude::*;
+
+use super::polars_bridge::{dataframe_to_dataset, polars_error_to_ingestion};
+
 /// Ingest a CSV file into an in-memory [`DataSet`].
 ///
 /// Rules:
@@ -13,10 +17,18 @@ use crate::types::{DataSet, DataType, Schema, Value};
 /// - Headers must contain all schema fields (order can differ).
 /// - Each value is parsed according to the schema field type.
 pub fn ingest_csv_from_path(path: impl AsRef<Path>, schema: &Schema) -> IngestionResult<DataSet> {
-    let mut rdr = csv::ReaderBuilder::new()
-        .has_headers(true)
-        .from_path(path)?;
-    ingest_csv_from_reader(&mut rdr, schema)
+    let path = path.as_ref();
+
+    // Phase 1 delegation: use Polars' CSV reader for robust parsing of CSV mechanics
+    // (quoting, escaping, delimiter handling, etc.), then convert into our `DataSet`.
+    let df = LazyCsvReader::new(path.to_string_lossy().as_ref().into())
+        .with_has_header(true)
+        .finish()
+        .map_err(|e| polars_error_to_ingestion("failed to read csv with polars", e))?
+        .collect()
+        .map_err(|e| polars_error_to_ingestion("failed to collect csv with polars", e))?;
+
+    dataframe_to_dataset(&df, schema, "column", 2)
 }
 
 /// Ingest CSV data from an existing CSV reader.

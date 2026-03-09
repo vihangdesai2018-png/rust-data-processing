@@ -5,7 +5,7 @@ This file is a **high-level, human-friendly overview** of the current API surfac
 For the canonical, always-up-to-date API docs, use **Rustdoc**:
 
 ```powershell
-cargo doc --no-deps --open
+./scripts/build_docs.ps1
 ```
 
 This generates HTML docs at `target/doc/rust_data_processing/index.html`.
@@ -16,8 +16,10 @@ This generates HTML docs at `target/doc/rust_data_processing/index.html`.
   - Schema/data model types: `Schema`, `Field`, `DataType`, `DataSet`, `Value`
 - `rust_data_processing::ingestion`
   - Unified entrypoint: `ingest_from_path`
-  - Options/types: `IngestionOptions`, `IngestionFormat`, `ExcelSheetSelection`, `IngestionRequest`
+  - Options/types: `IngestionOptions`, `IngestionOptionsBuilder`, `IngestionFormat`, `ExcelSheetSelection`, `IngestionRequest`
   - Observability: `IngestionObserver`, `IngestionSeverity`, `StdErrObserver`, `FileObserver`, `CompositeObserver`
+- `rust_data_processing::pipeline`
+  - DataFrame-centric pipeline API (Polars-backed): `DataFrame`, `Predicate`
 - `rust_data_processing::processing`
   - In-memory transformations: `filter`, `map`, `reduce`, `ReduceOp`
 - `rust_data_processing::execution`
@@ -25,6 +27,8 @@ This generates HTML docs at `target/doc/rust_data_processing/index.html`.
   - Monitoring: `ExecutionObserver`, `ExecutionEvent`, `ExecutionMetrics`
 - `rust_data_processing::error`
   - Errors/results: `IngestionError`, `IngestionResult<T>`
+- `rust_data_processing::sql` (feature: `sql`)
+  - Optional SQL module (Phase 1 placeholder)
 
 ## What data can be consumed?
 
@@ -33,7 +37,7 @@ This generates HTML docs at `target/doc/rust_data_processing/index.html`.
 - **CSV**: `.csv`
 - **JSON**: `.json`, `.ndjson` (nested fields supported via dot paths like `user.name`)
 - **Parquet**: `.parquet`, `.pq`
-- **Excel/workbooks**: `.xlsx`, `.xls`, `.xlsm`, `.xlsb`, `.ods` (requires feature `excel`)
+- **Excel/workbooks**: `.xlsx`, `.xls`, `.xlsm`, `.xlsb`, `.ods`
 
 ### Supported logical types
 
@@ -45,6 +49,59 @@ This generates HTML docs at `target/doc/rust_data_processing/index.html`.
 - `rust_data_processing::ingestion::ingest_from_path(path, schema, options) -> IngestionResult<DataSet>`
   - Auto-detects format from extension unless `options.format` is set
   - Calls observer hooks (`on_success` / `on_failure` / `on_alert`) when configured
+
+When you only need to override a couple options, prefer `IngestionOptionsBuilder`:
+
+```rust
+use rust_data_processing::ingestion::IngestionOptionsBuilder;
+use rust_data_processing::types::{DataType, Field, Schema};
+
+fn main() -> Result<(), rust_data_processing::IngestionError> {
+    let schema = Schema::new(vec![
+        Field::new("id", DataType::Int64),
+        Field::new("name", DataType::Utf8),
+    ]);
+
+    let ds = IngestionOptionsBuilder::new()
+        .ingest_from_path("people.csv", &schema)?;
+
+    println!("rows={}", ds.row_count());
+    Ok(())
+}
+```
+
+## DataFrame-centric pipelines (Phase 1)
+
+Use `rust_data_processing::pipeline::DataFrame` for DataFrame-centric transforms that compile to a lazy plan (Polars-backed)
+and collect into a `DataSet`:
+
+```rust
+use rust_data_processing::pipeline::{DataFrame, Predicate};
+use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
+
+let ds = DataSet::new(
+    Schema::new(vec![
+        Field::new("id", DataType::Int64),
+        Field::new("active", DataType::Bool),
+        Field::new("score", DataType::Float64),
+    ]),
+    vec![
+        vec![Value::Int64(1), Value::Bool(true), Value::Float64(10.0)],
+        vec![Value::Int64(2), Value::Bool(false), Value::Float64(20.0)],
+    ],
+);
+
+let out = DataFrame::from_dataset(&ds)
+    .unwrap()
+    .filter(Predicate::NotNull {
+        column: "score".to_string(),
+    })
+    .unwrap()
+    .collect()
+    .unwrap();
+
+assert_eq!(out.row_count(), 2);
+```
 
 ## Unified ingestion examples (CSV / JSON / Parquet / Excel)
 
@@ -147,13 +204,7 @@ fn main() -> Result<(), rust_data_processing::IngestionError> {
 }
 ```
 
-### Excel (requires `excel` feature)
-
-Enable the feature:
-
-```toml
-rust-data-processing = { path = ".", features = ["excel"] }
-```
+### Excel
 
 Example:
 
@@ -189,7 +240,7 @@ fn main() -> Result<(), rust_data_processing::IngestionError> {
 
 ## Cargo features
 
-- `excel`: enables Excel ingestion support
+- `excel`: backwards-compatibility feature flag (Excel ingestion is enabled by default)
 - `excel_test_writer`: enables Excel integration tests that generate `.xlsx` at runtime
 
 ## Processing pipelines (Epic 1 / Story 1.2)

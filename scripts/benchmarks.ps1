@@ -1,13 +1,36 @@
 param(
   [double]$MaxMedianMsFor1M = 500,
-  [switch]$Offline
+  [switch]$Offline,
+  # Faster Criterion run (useful for local iteration).
+  [switch]$Quick,
+  # Optional Criterion benchmark filter substring, e.g. 'pipelines/filter_map_reduce_sum/1000000'
+  [string]$Filter,
+  # Used when -Quick is set
+  [int]$SampleSize = 10,
+  [int]$WarmupSeconds = 1,
+  [int]$MeasureSeconds = 2
 )
+
+
+$scriptDir = $PSScriptRoot
+$repoRoot = if (Test-Path (Join-Path $scriptDir 'Cargo.toml')) { $scriptDir } else { Split-Path -Parent $scriptDir }
+
+
+$script:HasSccache = $false
+$script:SccachePath = $null
+$script:CapturedCriterionLines = $null
+$sccacheCmd = Get-Command sccache -ErrorAction SilentlyContinue
+if ($sccacheCmd) {
+  $script:HasSccache = $true
+  $script:SccachePath = $sccacheCmd.Source
+  $env:RUSTC_WRAPPER = "sccache"
+}
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 # Write all output to benchmarks.log (repo root)
-$PreferredLogPath = Join-Path $PSScriptRoot 'benchmarks.log'
+$PreferredLogPath = Join-Path $repoRoot 'benchmarks.log'
 $LogPath = $PreferredLogPath
 $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
@@ -16,7 +39,7 @@ function Initialize-Log {
     [System.IO.File]::WriteAllText($PreferredLogPath, "", $Utf8NoBom)
     $script:LogPath = $PreferredLogPath
   } catch {
-    $fallback = Join-Path $PSScriptRoot ("benchmarks_{0}.log" -f (Get-Date -Format "yyyyMMdd_HHmmss"))
+    $fallback = Join-Path $repoRoot ("benchmarks_{0}.log" -f (Get-Date -Format "yyyyMMdd_HHmmss"))
     [System.IO.File]::WriteAllText($fallback, "", $Utf8NoBom)
     $script:LogPath = $fallback
     Write-Host "NOTE: 'benchmarks.log' is locked; writing to '$fallback' instead."
@@ -30,7 +53,7 @@ function Write-LogLine([string]$line) {
     [System.IO.File]::AppendAllText($LogPath, ($line + [System.Environment]::NewLine), $Utf8NoBom)
   } catch {
     if ($LogPath -eq $PreferredLogPath) {
-      $fallback = Join-Path $PSScriptRoot ("benchmarks_{0}.log" -f (Get-Date -Format "yyyyMMdd_HHmmss"))
+      $fallback = Join-Path $repoRoot ("benchmarks_{0}.log" -f (Get-Date -Format "yyyyMMdd_HHmmss"))
       [System.IO.File]::WriteAllText($fallback, "", $Utf8NoBom)
       $script:LogPath = $fallback
       Write-Host "NOTE: 'benchmarks.log' became locked; switching logs to '$fallback'."
@@ -70,6 +93,10 @@ function Write-And-LogPipelineOutput {
     }
     Write-Host $line
     Write-LogLine $line
+    # Keep a tiny subset of lines in-memory for summary parsing (avoid buffering huge cargo output).
+    if ($script:CapturedCriterionLines -and ($line -match 'pipelines/filter_map_reduce_sum/\d+' -or $line -match 'time:\s*\[')) {
+      [void]$script:CapturedCriterionLines.Add($line)
+    }
     $line
   }
 }
@@ -81,14 +108,15 @@ function Invoke-LoggedAndCapture([scriptblock]$Command, [string]$OnFailMessage) 
   $oldEap = $ErrorActionPreference
   $ErrorActionPreference = 'Continue'
   try {
-    $lines = @(& $Command 2>&1 | Write-And-LogPipelineOutput)
+    $script:CapturedCriterionLines = New-Object System.Collections.Generic.List[string]
+    $null = (& $Command 2>&1 | Write-And-LogPipelineOutput)
     $code = $LASTEXITCODE
   } finally {
     $ErrorActionPreference = $oldEap
   }
 
   if ($code -ne 0) { throw "$OnFailMessage (exit code $code)" }
-  return ,$lines
+  return ,$script:CapturedCriterionLines.ToArray()
 }
 
 function Parse-DurationToMs([string]$s) {
@@ -154,6 +182,37 @@ function Get-CriterionTimeTripletMs {
   return $null
 }
 
+function Get-CriterionTimeTripletMsFromLog {
+  param(
+    [string]$Path,
+    [string]$BenchmarkId
+  )
+  if (-not (Test-Path $Path)) { return $null }
+
+  $idPattern = ([regex]::Escape($BenchmarkId) + '(?!\d)')
+  $hit = Select-String -Path $Path -Pattern $idPattern -Context 0,50 | Select-Object -First 1
+  if (-not $hit) { return $null }
+
+  $window = @($hit.Line) + $hit.Context.PostContext
+  foreach ($line in $window) {
+    if ($line -notmatch 'time:') { continue }
+    $tokenPattern = '\d+(?:\.\d+)?\s*\S+'
+    $dur = [regex]::Matches($line, $tokenPattern)
+    if ($dur.Count -ge 3) {
+      $lowMs = Parse-DurationToMs $dur[0].Value
+      $midMs = Parse-DurationToMs $dur[1].Value
+      $highMs = Parse-DurationToMs $dur[2].Value
+      return [pscustomobject]@{
+        low_ms = $lowMs
+        mid_ms = $midMs
+        high_ms = $highMs
+        raw = $line.Trim()
+      }
+    }
+  }
+  return $null
+}
+
 try {
   # Avoid rustup network calls during benchmark runs unless explicitly desired.
   $env:RUSTUP_NO_UPDATE_CHECK = '1'
@@ -178,6 +237,14 @@ try {
   ("pwd: " + (Get-Location).Path) | Write-And-LogPipelineOutput | Out-Null
   (& cargo --version 2>&1) | Write-And-LogPipelineOutput | Out-Null
   (& rustc --version 2>&1) | Write-And-LogPipelineOutput | Out-Null
+  if ($script:HasSccache) {
+    ("sccache: " + $script:SccachePath) | Write-And-LogPipelineOutput | Out-Null
+    ("RUSTC_WRAPPER: " + $env:RUSTC_WRAPPER) | Write-And-LogPipelineOutput | Out-Null
+    try { (& sccache --version 2>&1) | Write-And-LogPipelineOutput | Out-Null } catch { }
+    try { (& sccache --show-stats 2>&1) | Write-And-LogPipelineOutput | Out-Null } catch { }
+  } else {
+    "sccache: <not found on PATH> (install sccache or set RUSTC_WRAPPER for faster rebuilds)" | Write-And-LogPipelineOutput | Out-Null
+  }
   $cno = if ([string]::IsNullOrWhiteSpace($env:CARGO_NET_OFFLINE)) { "<unset>" } else { $env:CARGO_NET_OFFLINE }
   $ruo = if ([string]::IsNullOrWhiteSpace($env:RUSTUP_OFFLINE)) { "<unset>" } else { $env:RUSTUP_OFFLINE }
   ("CARGO_NET_OFFLINE: " + $cno) | Write-And-LogPipelineOutput | Out-Null
@@ -188,7 +255,29 @@ try {
   $cargoArgs = @('bench', '--bench', 'pipelines', '--locked')
   if ($Offline) { $cargoArgs += '--offline' }
 
+  $criterionArgs = @()
+  if ($Quick) {
+    $criterionArgs += @(
+      '--sample-size', "$SampleSize",
+      '--warm-up-time', "$WarmupSeconds",
+      '--measurement-time', "$MeasureSeconds"
+    )
+  }
+  if (-not [string]::IsNullOrWhiteSpace($Filter)) {
+    $criterionArgs += @("$Filter")
+  }
+  if ($criterionArgs.Count -gt 0) {
+    $cargoArgs += '--'
+    $cargoArgs += $criterionArgs
+  }
+
   $lines = Invoke-LoggedAndCapture { cargo @cargoArgs } "cargo bench --bench pipelines failed"
+  if ($script:HasSccache) {
+    Write-Host ""
+    Write-LogLine ""
+    Write-Section "== sccache stats (after) =="
+    try { (& sccache --show-stats 2>&1) | Write-And-LogPipelineOutput | Out-Null } catch { }
+  }
 
   Write-Host ""
   Write-LogLine ""
@@ -203,9 +292,16 @@ try {
     '1000000' = @{ low_ms = 105.13;  mid_ms = 107.94;  high_ms = 111.66 }
   }
 
-  foreach ($n in @('10000','100000','1000000')) {
+  $ns = @('10000','100000','1000000')
+  if (-not [string]::IsNullOrWhiteSpace($Filter)) {
+    # If the user filtered to a specific size, don't warn about the others.
+    $filteredNs = @($ns | Where-Object { $Filter -match ("/" + $_ + "(?!\d)") })
+    if ($filteredNs.Count -gt 0) { $ns = $filteredNs }
+  }
+
+  foreach ($n in $ns) {
     $id = "pipelines/filter_map_reduce_sum/$n"
-    $triplet = Get-CriterionTimeTripletMs -Lines $lines -BenchmarkId $id
+    $triplet = Get-CriterionTimeTripletMsFromLog -Path $LogPath -BenchmarkId $id
     if (-not $triplet) {
       Write-Host "WARN: Could not parse Criterion timing for $id"
       Write-LogLine "WARN: Could not parse Criterion timing for $id"
@@ -219,7 +315,7 @@ try {
     Write-LogLine $line
   }
 
-  $oneM = Get-CriterionTimeTripletMs -Lines $lines -BenchmarkId 'pipelines/filter_map_reduce_sum/1000000'
+  $oneM = Get-CriterionTimeTripletMsFromLog -Path $LogPath -BenchmarkId 'pipelines/filter_map_reduce_sum/1000000'
   if (-not $oneM) {
     Write-Host ""
     Write-LogLine ""

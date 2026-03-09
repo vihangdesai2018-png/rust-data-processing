@@ -1,5 +1,3 @@
-#![cfg(feature = "excel")]
-
 use std::path::Path;
 
 use calamine::{open_workbook_auto, Data, Reader};
@@ -56,6 +54,42 @@ pub fn ingest_excel_workbook_from_path(
     Ok(DataSet::new(schema.clone(), all_rows))
 }
 
+/// Infer a schema from an Excel workbook by reading the header row and scanning cell types.
+///
+/// Heuristic:
+/// - Column names come from the first non-empty row (same as ingestion).
+/// - Types are inferred as one of: Bool / Int64 / Float64 / Utf8
+/// - Mixed-type columns fall back to Utf8.
+pub fn infer_excel_schema_from_path(path: impl AsRef<Path>, sheet_name: Option<&str>) -> IngestionResult<Schema> {
+    let sheets: Option<Vec<&str>> = sheet_name.map(|s| vec![s]);
+    infer_excel_schema_workbook_from_path(path, sheets.as_deref())
+}
+
+/// Infer a schema from multiple sheets of a workbook.
+///
+/// Assumption: all selected sheets share the same header schema.
+pub fn infer_excel_schema_workbook_from_path(
+    path: impl AsRef<Path>,
+    sheet_names: Option<&[&str]>,
+) -> IngestionResult<Schema> {
+    let mut workbook = open_workbook_auto(path)?;
+
+    let sheets: Vec<String> = match sheet_names {
+        Some(names) => names.iter().map(|s| s.to_string()).collect(),
+        None => workbook.sheet_names().to_vec(),
+    };
+    if sheets.is_empty() {
+        return Err(IngestionError::SchemaMismatch {
+            message: "workbook has no sheets".to_string(),
+        });
+    }
+
+    // Infer from the first selected sheet only (header schema assumed consistent).
+    let sheet = &sheets[0];
+    let range = workbook.worksheet_range(sheet)?;
+    infer_schema_from_sheet_range(sheet, &range).map_err(|e| wrap_schema_err_with_sheet(sheet, e))
+}
+
 fn ingest_sheet_range(
     sheet: &str,
     range: &calamine::Range<Data>,
@@ -85,6 +119,107 @@ fn ingest_sheet_range(
     // Use header_cells only to avoid unused warning in some feature builds.
     let _ = header_cells;
     Ok(rows)
+}
+
+fn infer_schema_from_sheet_range(sheet: &str, range: &calamine::Range<Data>) -> IngestionResult<Schema> {
+    let (header_row_idx, header_cells) = find_header_row(range)?;
+
+    // Initialize per-column inference state.
+    let mut states: Vec<InferState> = vec![InferState::Unknown; header_cells.len()];
+
+    for (idx0, row) in range.rows().enumerate() {
+        if idx0 <= header_row_idx {
+            continue;
+        }
+        for (col_idx, cell) in row.iter().enumerate() {
+            if col_idx >= states.len() {
+                break;
+            }
+            states[col_idx].observe(cell);
+        }
+    }
+
+    let mut fields = Vec::with_capacity(header_cells.len());
+    for (name, st) in header_cells.into_iter().zip(states.into_iter()) {
+        let name = name.trim().to_string();
+        if name.is_empty() {
+            continue;
+        }
+        fields.push(crate::types::Field::new(name, st.finish_type()));
+    }
+
+    if fields.is_empty() {
+        return Err(IngestionError::SchemaMismatch {
+            message: format!("sheet '{sheet}': no header columns found"),
+        });
+    }
+
+    Ok(Schema::new(fields))
+}
+
+fn find_header_row(range: &calamine::Range<Data>) -> IngestionResult<(usize, Vec<String>)> {
+    for (idx0, row) in range.rows().enumerate() {
+        let non_empty = row.iter().any(|c| !matches!(c, Data::Empty));
+        if non_empty {
+            let header_cells = row.iter().map(cell_to_header_string).collect::<Vec<_>>();
+            return Ok((idx0, header_cells));
+        }
+    }
+    Err(IngestionError::SchemaMismatch {
+        message: "sheet has no non-empty rows (no header row found)".to_string(),
+    })
+}
+
+#[derive(Debug, Clone, Copy)]
+enum InferState {
+    Unknown,
+    Bool,
+    Int,
+    Float,
+    Utf8,
+}
+
+impl InferState {
+    fn observe(&mut self, c: &Data) {
+        if matches!(c, Data::Empty) {
+            return;
+        }
+
+        let next = match c {
+            Data::Bool(_) => InferState::Bool,
+            Data::Int(_) => InferState::Int,
+            Data::Float(f) => {
+                if f.fract() == 0.0 {
+                    InferState::Int
+                } else {
+                    InferState::Float
+                }
+            }
+            // Dates/durations/errors/strings: treat as strings.
+            _ => InferState::Utf8,
+        };
+
+        *self = match (*self, next) {
+            (InferState::Unknown, x) => x,
+            (InferState::Utf8, _) => InferState::Utf8,
+            (_, InferState::Utf8) => InferState::Utf8,
+            (InferState::Bool, InferState::Bool) => InferState::Bool,
+            (InferState::Int, InferState::Int) => InferState::Int,
+            (InferState::Float, InferState::Float) => InferState::Float,
+            (InferState::Int, InferState::Float) | (InferState::Float, InferState::Int) => InferState::Float,
+            // Any other mixing falls back to Utf8.
+            _ => InferState::Utf8,
+        };
+    }
+
+    fn finish_type(self) -> DataType {
+        match self {
+            InferState::Bool => DataType::Bool,
+            InferState::Int => DataType::Int64,
+            InferState::Float => DataType::Float64,
+            InferState::Utf8 | InferState::Unknown => DataType::Utf8,
+        }
+    }
 }
 
 fn wrap_schema_err_with_sheet(sheet: &str, err: IngestionError) -> IngestionError {

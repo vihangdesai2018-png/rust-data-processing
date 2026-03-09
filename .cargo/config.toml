@@ -1,0 +1,4 @@
+[target.x86_64-pc-windows-msvc]
+# `rust-lld` is typically much more memory-efficient than `link.exe` for large Rust graphs.
+linker = "rust-lld.exe"
+

@@ -1,0 +1,38 @@
+[
+  {
+    "job_id": 12001,
+    "creator_user_name": "analyst@example.com",
+    "created_time": 1742198198666,
+    "settings": {
+      "name": "daily_ingest_events",
+      "max_concurrent_runs": 1,
+      "tags": { "team": "platform", "env": "dev", "domain": "datalake" }
+    },
+    "cluster": { "spark_version": "16.1.x-scala2.12", "node_type_id": "i3.xlarge", "num_workers": 2 },
+    "metrics": { "duration_ms": 15432.25, "success": true, "bytes_written": 10485760 }
+  },
+  {
+    "job_id": 12002,
+    "creator_user_name": "dataeng@example.com",
+    "created_time": 1742198298123,
+    "settings": {
+      "name": "hourly_compaction",
+      "max_concurrent_runs": 2,
+      "tags": { "team": "platform", "env": "prod", "domain": "lakehouse" }
+    },
+    "cluster": { "spark_version": "16.1.x-scala2.12", "node_type_id": "i3.2xlarge", "num_workers": 8 },
+    "metrics": { "duration_ms": 98321.0, "success": true, "bytes_written": 987654321 }
+  },
+  {
+    "job_id": 12003,
+    "creator_user_name": "ml@example.com",
+    "created_time": 1742198399000,
+    "settings": {
+      "name": "feature_store_backfill",
+      "max_concurrent_runs": 1,
+      "tags": { "team": "ml", "env": "prod", "domain": "feature-store" }
+    },
+    "cluster": null,
+    "metrics": { "duration_ms": 0.0, "success": false, "bytes_written": null }
+  }
+]

@@ -1,133 +1,78 @@
 //! Parquet ingestion implementation.
 
-use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
-use parquet::file::reader::{ChunkReader, FileReader};
-use parquet::file::serialized_reader::SerializedFileReader;
-use parquet::record::Field;
-
 use crate::error::{IngestionError, IngestionResult};
-use crate::types::{DataSet, DataType, Schema, Value};
+use crate::types::{DataSet, DataType, Schema};
+
+use polars::prelude::*;
+
+use super::polars_bridge::{dataframe_to_dataset, polars_error_to_ingestion};
 
 /// Ingest a Parquet file into an in-memory `DataSet`.
 ///
 /// Notes:
-/// - Validates that all schema fields exist as Parquet leaf columns (by column path string)
-/// - Uses the Parquet record API (`RowIter`) for a first implementation
+/// - Validates that all schema fields exist as columns
+/// - Delegates Parquet decoding to Polars, then converts into `DataSet`
 pub fn ingest_parquet_from_path(path: impl AsRef<Path>, schema: &Schema) -> IngestionResult<DataSet> {
-    let reader = SerializedFileReader::try_from(path.as_ref())?;
+    let path = path.as_ref();
 
-    let available_columns = parquet_leaf_column_paths(&reader);
+    let df = LazyFrame::scan_parquet(path.to_string_lossy().as_ref().into(), ScanArgsParquet::default())
+        .map_err(|e| polars_error_to_ingestion("failed to read parquet with polars", e))?
+        .collect()
+        .map_err(|e| polars_error_to_ingestion("failed to collect parquet with polars", e))?;
+
+    // Parquet: keep "type mismatch" strictness. If the physical/logical Parquet column type is
+    // incompatible with the requested schema type (e.g. UTF8 string column for an Int64 field),
+    // we surface this as a ParseError (tests rely on this behavior).
+    validate_parquet_column_types(&df, schema)?;
+
+    dataframe_to_dataset(&df, schema, "column", 1)
+}
+
+fn validate_parquet_column_types(df: &DataFrame, schema: &Schema) -> IngestionResult<()> {
     for field in &schema.fields {
-        if !available_columns.contains(field.name.as_str()) {
-            return Err(IngestionError::SchemaMismatch {
+        let s = df
+            .column(&field.name)
+            .map_err(|_| IngestionError::SchemaMismatch {
                 message: format!("missing required column '{}'", field.name),
+            })?
+            .as_materialized_series();
+
+        if !dtype_compatible_with_schema(&field.data_type, s.dtype()) {
+            return Err(IngestionError::ParseError {
+                row: 1,
+                column: field.name.clone(),
+                raw: s.dtype().to_string(),
+                message: "parquet column type mismatch".to_string(),
             });
         }
     }
-
-    let mut rows: Vec<Vec<Value>> = Vec::new();
-    for (idx0, row_res) in reader.into_iter().enumerate() {
-        let row_num = idx0 + 1;
-        let row = row_res?;
-
-        // Build a name->Field map for lookup.
-        let mut map: HashMap<&str, &Field> = HashMap::new();
-        for (name, field) in row.get_column_iter() {
-            map.insert(name.as_str(), field);
-        }
-
-        let mut out_row: Vec<Value> = Vec::with_capacity(schema.fields.len());
-        for f in &schema.fields {
-            let v = map.get(f.name.as_str()).ok_or_else(|| IngestionError::SchemaMismatch {
-                message: format!("row {row_num} missing required column '{}'", f.name),
-            })?;
-            out_row.push(convert_parquet_field(row_num, &f.name, &f.data_type, v)?);
-        }
-        rows.push(out_row);
-    }
-
-    Ok(DataSet::new(schema.clone(), rows))
+    Ok(())
 }
 
-fn parquet_leaf_column_paths<R: ChunkReader + 'static>(
-    reader: &SerializedFileReader<R>,
-) -> HashSet<String> {
-    let mut set = HashSet::new();
-    let cols = reader
-        .metadata()
-        .file_metadata()
-        .schema_descr()
-        .columns();
-    for c in cols {
-        set.insert(c.path().string());
-    }
-    set
-}
+fn dtype_compatible_with_schema(schema_dtype: &DataType, polars_dtype: &polars::datatypes::DataType) -> bool {
+    use polars::datatypes::DataType as P;
 
-fn convert_parquet_field(
-    row: usize,
-    column: &str,
-    data_type: &DataType,
-    f: &Field,
-) -> IngestionResult<Value> {
-    match f {
-        Field::Null => return Ok(Value::Null),
-        _ => {}
-    }
-
-    match data_type {
-        DataType::Utf8 => match f {
-            Field::Str(s) => Ok(Value::Utf8(s.clone())),
-            _ => Err(IngestionError::ParseError {
-                row,
-                column: column.to_string(),
-                raw: f.to_string(),
-                message: "expected string".to_string(),
-            }),
-        },
-        DataType::Bool => match f {
-            Field::Bool(b) => Ok(Value::Bool(*b)),
-            _ => Err(IngestionError::ParseError {
-                row,
-                column: column.to_string(),
-                raw: f.to_string(),
-                message: "expected bool".to_string(),
-            }),
-        },
-        DataType::Int64 => match f {
-            Field::Byte(v) => Ok(Value::Int64(i64::from(*v))),
-            Field::Short(v) => Ok(Value::Int64(i64::from(*v))),
-            Field::Int(v) => Ok(Value::Int64(i64::from(*v))),
-            Field::Long(v) => Ok(Value::Int64(*v)),
-            Field::UByte(v) => Ok(Value::Int64(i64::from(*v))),
-            Field::UShort(v) => Ok(Value::Int64(i64::from(*v))),
-            Field::UInt(v) => Ok(Value::Int64(i64::from(*v))),
-            Field::ULong(v) => i64::try_from(*v)
-                .map(Value::Int64)
-                .map_err(|_| IngestionError::ParseError {
-                    row,
-                    column: column.to_string(),
-                    raw: f.to_string(),
-                    message: "u64 out of range for i64".to_string(),
-                }),
-            _ => Err(IngestionError::ParseError {
-                row,
-                column: column.to_string(),
-                raw: f.to_string(),
-                message: "expected integer".to_string(),
-            }),
-        },
-        DataType::Float64 => match f {
-            Field::Float(v) => Ok(Value::Float64(f64::from(*v))),
-            Field::Double(v) => Ok(Value::Float64(*v)),
-            _ => Err(IngestionError::ParseError {
-                row,
-                column: column.to_string(),
-                raw: f.to_string(),
-                message: "expected number".to_string(),
-            }),
-        },
+    match schema_dtype {
+        DataType::Utf8 => matches!(polars_dtype, P::String),
+        DataType::Bool => matches!(polars_dtype, P::Boolean),
+        DataType::Int64 => matches!(
+            polars_dtype,
+            P::Int8 | P::Int16 | P::Int32 | P::Int64 | P::UInt8 | P::UInt16 | P::UInt32 | P::UInt64
+        ),
+        DataType::Float64 => matches!(
+            polars_dtype,
+            P::Float32
+                | P::Float64
+                | P::Int8
+                | P::Int16
+                | P::Int32
+                | P::Int64
+                | P::UInt8
+                | P::UInt16
+                | P::UInt32
+                | P::UInt64
+        ),
     }
 }

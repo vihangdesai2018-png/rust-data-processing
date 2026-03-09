@@ -10,7 +10,6 @@ use parquet::file::writer::SerializedFileWriter;
 use parquet::schema::parser::parse_message_type;
 
 use rust_data_processing::ingestion::{ingest_from_path, IngestionFormat, IngestionOptions};
-#[cfg(feature = "excel_test_writer")]
 use rust_data_processing::ingestion::ExcelSheetSelection;
 use rust_data_processing::types::{DataType, Field, Schema, Value};
 
@@ -184,7 +183,6 @@ fn unified_ingest_switch_formats_same_schema() {
     let _ = std::fs::remove_file(&path);
 }
 
-#[cfg(feature = "excel_test_writer")]
 #[test]
 fn unified_ingest_excel_all_sheets_explicit_format() {
     use rust_xlsxwriter::Workbook;
@@ -228,7 +226,6 @@ fn unified_ingest_excel_all_sheets_explicit_format() {
     let _ = std::fs::remove_file(&path);
 }
 
-#[cfg(feature = "excel_test_writer")]
 #[test]
 fn unified_ingest_excel_all_sheets_auto_by_extension() {
     use rust_xlsxwriter::Workbook;

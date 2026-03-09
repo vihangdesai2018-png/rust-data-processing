@@ -11,7 +11,7 @@
 //! - **CSV**: `.csv`
 //! - **JSON**: `.json` (array-of-objects) and `.ndjson` (newline-delimited objects)
 //! - **Parquet**: `.parquet`, `.pq`
-//! - **Excel/workbooks** (requires the Cargo feature `excel`): `.xlsx`, `.xls`, `.xlsm`, `.xlsb`, `.ods`
+//! - **Excel/workbooks**: `.xlsx`, `.xls`, `.xlsm`, `.xlsb`, `.ods`
 //!
 //! **Schema + value types:**
 //!
@@ -151,8 +151,11 @@
 
 pub mod error;
 pub mod ingestion;
+pub mod pipeline;
 pub mod processing;
 pub mod execution;
 pub mod types;
+#[cfg(feature = "sql")]
+pub mod sql;
 
 pub use error::{IngestionError, IngestionResult};

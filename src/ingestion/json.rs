@@ -6,16 +6,83 @@
 //!
 //! Nested fields are supported using dot paths in schema field names (e.g. `user.name`).
 
-use std::fs;
+use std::fs::File;
 use std::path::Path;
 
 use crate::error::{IngestionError, IngestionResult};
 use crate::types::{DataSet, DataType, Schema, Value};
 
+use polars::prelude::*;
+
+use super::polars_bridge::{dataframe_to_dataset, polars_error_to_ingestion};
+
 /// Ingest JSON into an in-memory `DataSet`.
 pub fn ingest_json_from_path(path: impl AsRef<Path>, schema: &Schema) -> IngestionResult<DataSet> {
-    let text = fs::read_to_string(path)?;
-    ingest_json_from_str(&text, schema)
+    let path = path.as_ref();
+    let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+
+    let json_format = if ext.eq_ignore_ascii_case("ndjson") {
+        JsonFormat::JsonLines
+    } else {
+        JsonFormat::Json
+    };
+
+    let file = File::open(path)?;
+    let df = JsonReader::new(file)
+        .with_json_format(json_format)
+        .finish()
+        .map_err(|e| json_polars_error("failed to read json with polars", e))?;
+
+    // Ensure required top-level fields exist before we build any lazy projections.
+    // (Dotted fields like `user.name` are handled via derived columns below.)
+    for field in &schema.fields {
+        if !field.name.contains('.') && df.column(&field.name).is_err() {
+            return Err(IngestionError::SchemaMismatch {
+                message: format!("missing required field '{}'", field.name),
+            });
+        }
+    }
+
+    let mut lf = df.lazy();
+
+    // Add derived columns for dotted schema field paths (e.g. `user.name`).
+    let mut derived: Vec<Expr> = Vec::new();
+    for field in &schema.fields {
+        if field.name.contains('.') {
+            derived.push(expr_for_dot_path(&field.name));
+        }
+    }
+    if !derived.is_empty() {
+        lf = lf.with_columns(derived);
+    }
+
+    // Select only the schema columns in schema order, then convert to DataSet.
+    let projection: Vec<Expr> = schema.fields.iter().map(|f| col(&f.name)).collect();
+    let projected = lf
+        .select(projection)
+        .collect()
+        .map_err(|e| json_polars_error("failed to project json fields", e))?;
+
+    dataframe_to_dataset(&projected, schema, "field", 1)
+}
+
+fn json_polars_error(action: &str, err: PolarsError) -> IngestionError {
+    match err {
+        PolarsError::ColumnNotFound(name) => IngestionError::SchemaMismatch {
+            message: format!("missing required field '{name}'"),
+        },
+        other => polars_error_to_ingestion(action, other),
+    }
+}
+
+fn expr_for_dot_path(path: &str) -> Expr {
+    let mut iter = path.split('.');
+    let root = iter.next().unwrap_or(path);
+    let mut expr = col(root);
+    for seg in iter {
+        expr = expr.struct_().field_by_name(seg);
+    }
+    expr.alias(path)
 }
 
 /// Ingest JSON from an in-memory string into a [`DataSet`].

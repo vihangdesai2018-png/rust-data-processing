@@ -17,7 +17,9 @@ use crate::error::{IngestionError, IngestionResult};
 use crate::types::{DataSet, Schema};
 
 use super::observability::{IngestionContext, IngestionObserver, IngestionSeverity, IngestionStats};
-use super::{csv, json, parquet};
+use super::{csv, excel, json, parquet};
+use super::polars_bridge::{infer_schema_from_dataframe_lossy, polars_error_to_ingestion};
+use polars::prelude::*;
 
 /// Supported ingestion formats.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -216,15 +218,9 @@ impl Default for IngestionOptions {
 /// # }
 /// ```
 ///
-/// ## Excel (feature-gated)
+/// ## Excel
 ///
-/// To ingest Excel files, enable the `excel` feature in your `Cargo.toml`:
-///
-/// ```toml
-/// rust-data-processing = { path = ".", features = ["excel"] }
-/// ```
-///
-/// Example (requires the `excel` feature). Marked `no_run` so it is **compiled** by doctests
+/// Example. Marked `no_run` so it is **compiled** by doctests
 /// (no "not tested" banner), but not executed (it expects a real `workbook.xlsx` file).
 ///
 /// ```no_run
@@ -289,6 +285,65 @@ pub fn ingest_from_path(
     result
 }
 
+/// Infer a [`Schema`] for an input file.
+///
+/// This is intended for quick exploration and benchmarking when callers don't have a schema yet.
+/// It uses a **best-effort** mapping into `DataType::{Int64, Float64, Bool, Utf8}`.
+///
+/// Notes:
+/// - For JSON, nested fields are inferred only at the **top level** (no dot-path expansion).
+/// - For Excel, inference uses a scan-based heuristic.
+pub fn infer_schema_from_path(path: impl AsRef<Path>, options: &IngestionOptions) -> IngestionResult<Schema> {
+    let path = path.as_ref();
+    let fmt = match options.format {
+        Some(f) => f,
+        None => infer_format_from_path(path)?,
+    };
+
+    match fmt {
+        IngestionFormat::Csv => {
+            let df = LazyCsvReader::new(path.to_string_lossy().as_ref().into())
+                .with_has_header(true)
+                .finish()
+                .map_err(|e| polars_error_to_ingestion("failed to read csv with polars", e))?
+                .collect()
+                .map_err(|e| polars_error_to_ingestion("failed to collect csv with polars", e))?;
+            infer_schema_from_dataframe_lossy(&df)
+        }
+        IngestionFormat::Json => {
+            use std::fs::File;
+
+            let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+            let json_format = if ext.eq_ignore_ascii_case("ndjson") {
+                JsonFormat::JsonLines
+            } else {
+                JsonFormat::Json
+            };
+
+            let file = File::open(path)?;
+            let df = JsonReader::new(file)
+                .with_json_format(json_format)
+                .finish()
+                .map_err(|e| polars_error_to_ingestion("failed to read json with polars", e))?;
+            infer_schema_from_dataframe_lossy(&df)
+        }
+        IngestionFormat::Parquet => {
+            let df = LazyFrame::scan_parquet(path.to_string_lossy().as_ref().into(), ScanArgsParquet::default())
+                .map_err(|e| polars_error_to_ingestion("failed to read parquet with polars", e))?
+                .collect()
+                .map_err(|e| polars_error_to_ingestion("failed to collect parquet with polars", e))?;
+            infer_schema_from_dataframe_lossy(&df)
+        }
+        IngestionFormat::Excel => infer_excel_schema_dispatch(path, &options.excel_sheet_selection),
+    }
+}
+
+/// Convenience wrapper: infer schema and then ingest.
+pub fn ingest_from_path_infer(path: impl AsRef<Path>, options: &IngestionOptions) -> IngestionResult<DataSet> {
+    let schema = infer_schema_from_path(path.as_ref(), options)?;
+    ingest_from_path(path, &schema, options)
+}
+
 fn severity_for_error(e: &IngestionError) -> IngestionSeverity {
     match e {
         IngestionError::Io(_) => IngestionSeverity::Critical,
@@ -305,8 +360,14 @@ fn severity_for_error(e: &IngestionError) -> IngestionSeverity {
             ::csv::ErrorKind::Io(_) => IngestionSeverity::Critical,
             _ => IngestionSeverity::Error,
         },
-        #[cfg(feature = "excel")]
         IngestionError::Excel(_) => IngestionSeverity::Error,
+        IngestionError::Engine { source, .. } => {
+            if error_chain_contains_io(source.as_ref()) {
+                IngestionSeverity::Critical
+            } else {
+                IngestionSeverity::Error
+            }
+        }
         IngestionError::SchemaMismatch { .. } => IngestionSeverity::Error,
         IngestionError::ParseError { .. } => IngestionSeverity::Error,
     }
@@ -347,29 +408,26 @@ fn ingest_excel_dispatch(
     schema: &Schema,
     sel: &ExcelSheetSelection,
 ) -> IngestionResult<DataSet> {
-    // Avoid unused warnings when the feature is off.
-    let _ = (path, schema, sel);
-
-    #[cfg(feature = "excel")]
-    {
-        use super::excel;
-
-        match sel {
-            ExcelSheetSelection::First => excel::ingest_excel_from_path(path, None, schema),
-            ExcelSheetSelection::Sheet(name) => excel::ingest_excel_from_path(path, Some(name.as_str()), schema),
-            ExcelSheetSelection::AllSheets => excel::ingest_excel_workbook_from_path(path, None, schema),
-            ExcelSheetSelection::Sheets(names) => {
-                let refs: Vec<&str> = names.iter().map(|s| s.as_str()).collect();
-                excel::ingest_excel_workbook_from_path(path, Some(refs.as_slice()), schema)
-            }
+    match sel {
+        ExcelSheetSelection::First => excel::ingest_excel_from_path(path, None, schema),
+        ExcelSheetSelection::Sheet(name) => excel::ingest_excel_from_path(path, Some(name.as_str()), schema),
+        ExcelSheetSelection::AllSheets => excel::ingest_excel_workbook_from_path(path, None, schema),
+        ExcelSheetSelection::Sheets(names) => {
+            let refs: Vec<&str> = names.iter().map(|s| s.as_str()).collect();
+            excel::ingest_excel_workbook_from_path(path, Some(refs.as_slice()), schema)
         }
     }
+}
 
-    #[cfg(not(feature = "excel"))]
-    {
-        Err(IngestionError::SchemaMismatch {
-            message: "excel ingestion not enabled (enable cargo feature 'excel')".to_string(),
-        })
+fn infer_excel_schema_dispatch(path: &Path, sel: &ExcelSheetSelection) -> IngestionResult<Schema> {
+    match sel {
+        ExcelSheetSelection::First => excel::infer_excel_schema_from_path(path, None),
+        ExcelSheetSelection::Sheet(name) => excel::infer_excel_schema_from_path(path, Some(name.as_str())),
+        ExcelSheetSelection::AllSheets => excel::infer_excel_schema_workbook_from_path(path, None),
+        ExcelSheetSelection::Sheets(names) => {
+            let refs: Vec<&str> = names.iter().map(|s| s.as_str()).collect();
+            excel::infer_excel_schema_workbook_from_path(path, Some(refs.as_slice()))
+        }
     }
 }
 

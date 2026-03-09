@@ -1,9 +1,9 @@
 # rust-data-processing
 
-Small Rust library for ingesting common file formats (CSV / JSON / Parquet, with optional Excel) into an in-memory
-`DataSet`, with basic schema validation and optional observability hooks.
+Small Rust library for ingesting common file formats (CSV / JSON / Parquet / Excel) into an in-memory
+`DataSet`, with basic schema validation, a DataFrame-centric pipeline API (Polars-backed), and optional observability hooks.
 
-- **API docs**: generate with `cargo doc` (see below)
+- **API docs**: generate with `./scripts/build_docs.ps1` (see below)
 - **Status**: library APIs are in `src/lib.rs`; the binary (`src/main.rs`) is currently just a placeholder.
 
 ## Platform support
@@ -20,6 +20,7 @@ Small Rust library for ingesting common file formats (CSV / JSON / Parquet, with
 - **Benchmarks**:
   - `cargo bench --bench pipelines` is cross-platform.
   - `benchmarks.ps1` is a Windows/PowerShell convenience wrapper; on Linux/macOS you can run it via `pwsh` or just run `cargo bench` directly.
+  - `scripts/run_benchmarks.ps1` runs all Criterion benchmarks (pipelines + ingestion + map/reduce).
 
 ## Quick start (library usage)
 
@@ -49,6 +50,59 @@ fn main() -> Result<(), rust_data_processing::IngestionError> {
 }
 ```
 
+Prefer builder-style options when you only need to override a couple knobs:
+
+```rust
+use rust_data_processing::ingestion::IngestionOptionsBuilder;
+use rust_data_processing::types::{DataType, Field, Schema};
+
+fn main() -> Result<(), rust_data_processing::IngestionError> {
+    let schema = Schema::new(vec![
+        Field::new("id", DataType::Int64),
+        Field::new("name", DataType::Utf8),
+    ]);
+
+    let ds = IngestionOptionsBuilder::new()
+        .ingest_from_path("tests/fixtures/people.csv", &schema)?;
+
+    println!("rows={}", ds.row_count());
+    Ok(())
+}
+```
+
+## DataFrame-centric pipelines (Polars-backed) (Phase 1)
+
+Use `rust_data_processing::pipeline::DataFrame` for a DataFrame-centric pipeline API that compiles to a lazy plan and
+collects into a `DataSet`:
+
+```rust
+use rust_data_processing::pipeline::{DataFrame, Predicate};
+use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
+
+let ds = DataSet::new(
+    Schema::new(vec![
+        Field::new("id", DataType::Int64),
+        Field::new("active", DataType::Bool),
+        Field::new("score", DataType::Float64),
+    ]),
+    vec![
+        vec![Value::Int64(1), Value::Bool(true), Value::Float64(10.0)],
+        vec![Value::Int64(2), Value::Bool(true), Value::Float64(20.0)],
+        vec![Value::Int64(3), Value::Bool(false), Value::Float64(30.0)],
+    ],
+);
+
+let out = DataFrame::from_dataset(&ds)?
+    .filter(Predicate::Eq {
+        column: "active".to_string(),
+        value: Value::Bool(true),
+    })?
+    .multiply_f64("score", 2.0)?
+    .collect()?;
+
+assert_eq!(out.row_count(), 2);
+```
+
 ## What data can be consumed? (Epic 1 / Stories 1.1–1.2)
 
 ### File formats (auto-detected by extension)
@@ -57,7 +111,7 @@ fn main() -> Result<(), rust_data_processing::IngestionError> {
 - **JSON**: `.json` (array-of-objects) and `.ndjson` (newline-delimited objects)
   - Nested fields are supported via **dot paths** in schema field names (e.g. `user.name`)
 - **Parquet**: `.parquet`, `.pq`
-- **Excel/workbooks**: `.xlsx`, `.xls`, `.xlsm`, `.xlsb`, `.ods` (requires feature `excel`)
+- **Excel/workbooks**: `.xlsx`, `.xls`, `.xlsm`, `.xlsb`, `.ods`
 
 ### Supported value types
 
@@ -181,6 +235,20 @@ Criterion benchmarks live under `benches/` (currently `benches/pipelines.rs`).
 cargo bench --bench pipelines
 ```
 
+Additional benchmark targets:
+
+- `cargo bench --bench ingestion`
+  - Generates 20k-row fixtures (CSV / JSON array / NDJSON / nested JSON / Parquet; Excel when enabled)
+  - Measures schema-known vs schema-inferred and a “warm vs rotating files” proxy for cache effects
+- `cargo bench --bench map_reduce`
+  - Benchmarks filter/map/reduce on in-memory `DataSet` vs `ExecutionEngine` parallel path
+
+Convenience runner (Windows / PowerShell):
+
+```powershell
+./scripts/run_benchmarks.ps1 -Quick
+```
+
 ### Observability (failure/alert hooks)
 
 ```rust
@@ -217,11 +285,12 @@ fn main() -> Result<(), rust_data_processing::IngestionError> {
 
 - `excel`: enable Excel ingestion (adds `calamine`)
 - `excel_test_writer`: enables Excel integration tests that generate an `.xlsx` at runtime
+- `sql`: enables the (currently minimal) `rust_data_processing::sql` module
 
 ## Run tests
 
 ```powershell
-cargo test
+./scripts/run_unit_tests.ps1
 ```
 
 ## Generate API docs (Rustdoc)
@@ -229,7 +298,15 @@ cargo test
 Rust has built-in API documentation via **Rustdoc**.
 
 ```powershell
-cargo doc --no-deps --open
+./scripts/build_docs.ps1
+```
+
+## Deep tests (large/realistic fixtures)
+
+Deep tests are **not** run as part of `./scripts/run_unit_tests.ps1`. They are feature-gated behind `deep_tests`.
+
+```powershell
+./scripts/run_deep_tests.ps1
 ```
 
 ## Development on Windows (toolchain + linker)

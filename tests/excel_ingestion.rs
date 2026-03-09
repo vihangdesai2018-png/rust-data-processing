@@ -1,5 +1,3 @@
-#![cfg(feature = "excel_test_writer")]
-
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
