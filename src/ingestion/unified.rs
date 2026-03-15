@@ -360,6 +360,7 @@ fn severity_for_error(e: &IngestionError) -> IngestionSeverity {
             ::csv::ErrorKind::Io(_) => IngestionSeverity::Critical,
             _ => IngestionSeverity::Error,
         },
+        #[cfg(feature = "excel")]
         IngestionError::Excel(_) => IngestionSeverity::Error,
         IngestionError::Engine { source, .. } => {
             if error_chain_contains_io(source.as_ref()) {

@@ -3,6 +3,9 @@
 use std::collections::HashSet;
 
 use rust_data_processing::ingestion::{ingest_from_path, IngestionOptions};
+use rust_data_processing::pipeline::DataFrame;
+use rust_data_processing::profiling::{profile_dataset, ProfileOptions, SamplingMode};
+use rust_data_processing::transform::{TransformSpec, TransformStep};
 use rust_data_processing::types::{DataType, Field, Schema, Value};
 
 #[test]
@@ -61,6 +64,99 @@ fn deep_json_nested_job_runs_extracts_dot_paths_and_handles_nulls() {
     assert_eq!(ds.rows[2][6], Value::Null);
     assert_eq!(ds.rows[2][9], Value::Null);
     assert_eq!(ds.rows[2][8], Value::Bool(false));
+}
+
+#[test]
+fn deep_transform_spec_and_sql_work_on_real_fixture() {
+    // Use the Seattle weather CSV fixture as a realistic dataset.
+    let schema = Schema::new(vec![
+        Field::new("date", DataType::Utf8),
+        Field::new("precipitation", DataType::Float64),
+        Field::new("temp_max", DataType::Float64),
+        Field::new("temp_min", DataType::Float64),
+        Field::new("wind", DataType::Float64),
+        Field::new("weather", DataType::Utf8),
+    ]);
+
+    let ds = ingest_from_path(
+        "tests/fixtures/deep/seattle-weather.csv",
+        &schema,
+        &IngestionOptions::default(),
+    )
+    .unwrap();
+
+    // Apply a mapping spec: rename + derive + select/reorder.
+    let out_schema = Schema::new(vec![
+        Field::new("date", DataType::Utf8),
+        Field::new("wx", DataType::Utf8),
+        Field::new("temp_max_x2", DataType::Float64),
+    ]);
+
+    let spec = TransformSpec::new(out_schema.clone())
+        .with_step(TransformStep::Rename {
+            pairs: vec![("weather".to_string(), "wx".to_string())],
+        })
+        // temp_max_x2 = temp_max * 2.0
+        .with_step(TransformStep::DeriveMulF64 {
+            name: "temp_max_x2".to_string(),
+            source: "temp_max".to_string(),
+            factor: 2.0,
+        })
+        .with_step(TransformStep::Select {
+            columns: vec!["date".to_string(), "wx".to_string(), "temp_max_x2".to_string()],
+        });
+
+    let mapped = spec.apply(&ds).unwrap();
+    assert_eq!(mapped.schema, out_schema);
+    assert_eq!(mapped.row_count(), ds.row_count());
+    assert!(matches!(mapped.rows[0][2], Value::Float64(_)));
+
+    // Ensure the SQL wrapper runs on the transformed data.
+    // We keep assertions non-brittle by only checking basic shape and determinism.
+    let df = DataFrame::from_dataset(&mapped).unwrap();
+    let out = rust_data_processing::sql::query(
+        &df,
+        "SELECT date, wx FROM df WHERE wx IS NOT NULL ORDER BY date ASC LIMIT 5",
+    )
+    .unwrap()
+    .collect()
+    .unwrap();
+
+    assert_eq!(out.schema.field_names().collect::<Vec<_>>(), vec!["date", "wx"]);
+    assert_eq!(out.row_count(), 5);
+}
+
+#[test]
+fn deep_profiling_head_sampling_is_deterministic() {
+    let schema = Schema::new(vec![
+        Field::new("date", DataType::Utf8),
+        Field::new("precipitation", DataType::Float64),
+        Field::new("temp_max", DataType::Float64),
+        Field::new("temp_min", DataType::Float64),
+        Field::new("wind", DataType::Float64),
+        Field::new("weather", DataType::Utf8),
+    ]);
+
+    let ds = ingest_from_path(
+        "tests/fixtures/deep/seattle-weather.csv",
+        &schema,
+        &IngestionOptions::default(),
+    )
+    .unwrap();
+
+    let rep = profile_dataset(
+        &ds,
+        &ProfileOptions {
+            sampling: SamplingMode::Head(100),
+            quantiles: vec![0.5],
+        },
+    )
+    .unwrap();
+
+    assert_eq!(rep.row_count, 100);
+    assert_eq!(rep.columns.len(), schema.fields.len());
+    let date = rep.columns.iter().find(|c| c.name == "date").unwrap();
+    assert_eq!(date.data_type, DataType::Utf8);
 }
 
 #[test]

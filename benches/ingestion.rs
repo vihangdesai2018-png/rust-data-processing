@@ -11,6 +11,7 @@ use rust_data_processing::processing::{reduce, ReduceOp};
 use rust_data_processing::types::{DataType, Field, Schema};
 
 use polars::prelude::{Column, DataFrame, NamedFrom, ParquetWriter, Series};
+#[cfg(feature = "excel_test_writer")]
 use rust_xlsxwriter::Workbook;
 
 const N_ROWS: usize = 20_000;
@@ -27,7 +28,9 @@ struct Fixtures {
     json_nested_rotating: Vec<PathBuf>,
     parquet: PathBuf,
     parquet_rotating: Vec<PathBuf>,
+    #[cfg(feature = "excel_test_writer")]
     xlsx: PathBuf,
+    #[cfg(feature = "excel_test_writer")]
     xlsx_rotating: Vec<PathBuf>,
 }
 
@@ -45,6 +48,7 @@ fn build_fixtures() -> std::io::Result<Fixtures> {
     let ndjson = dir.join("data_20000.ndjson");
     let json_nested = dir.join("nested_20000.json");
     let parquet = dir.join("data_20000.parquet");
+    #[cfg(feature = "excel_test_writer")]
     let xlsx = dir.join("data_20000.xlsx");
 
     if !csv.exists() {
@@ -62,8 +66,11 @@ fn build_fixtures() -> std::io::Result<Fixtures> {
     if !parquet.exists() {
         write_parquet(&parquet, N_ROWS)?;
     }
-    if !xlsx.exists() {
-        write_xlsx(&xlsx, N_ROWS)?;
+    #[cfg(feature = "excel_test_writer")]
+    {
+        if !xlsx.exists() {
+            write_xlsx(&xlsx, N_ROWS)?;
+        }
     }
 
     let csv_rotating = ensure_copies(&csv, &dir, "data_20000_copy", "csv", ROTATING_COPIES)?;
@@ -73,6 +80,7 @@ fn build_fixtures() -> std::io::Result<Fixtures> {
         ensure_copies(&json_nested, &dir, "nested_20000_copy", "json", ROTATING_COPIES)?;
     let parquet_rotating =
         ensure_copies(&parquet, &dir, "data_20000_copy", "parquet", ROTATING_COPIES)?;
+    #[cfg(feature = "excel_test_writer")]
     let xlsx_rotating = ensure_copies(&xlsx, &dir, "data_20000_copy", "xlsx", ROTATING_COPIES)?;
 
     Ok(Fixtures {
@@ -86,7 +94,9 @@ fn build_fixtures() -> std::io::Result<Fixtures> {
         json_nested_rotating,
         parquet,
         parquet_rotating,
+        #[cfg(feature = "excel_test_writer")]
         xlsx,
+        #[cfg(feature = "excel_test_writer")]
         xlsx_rotating,
     })
 }
@@ -195,6 +205,7 @@ fn write_parquet(path: &Path, n: usize) -> std::io::Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "excel_test_writer")]
 fn write_xlsx(path: &Path, n: usize) -> std::io::Result<()> {
     let mut wb = Workbook::new();
     let ws = wb.add_worksheet();
@@ -372,6 +383,7 @@ fn bench_ingestion(c: &mut Criterion) {
         &opts,
     );
 
+    #[cfg(feature = "excel_test_writer")]
     bench_case(
         &mut group,
         "xlsx",
@@ -420,6 +432,7 @@ fn bench_ingest_then_reduce(c: &mut Criterion) {
     bench_e2e(&mut group, "json_array", &fx.json_array, &schema, &opts);
     bench_e2e(&mut group, "ndjson", &fx.ndjson, &schema, &opts);
     bench_e2e(&mut group, "parquet", &fx.parquet, &schema, &opts);
+    #[cfg(feature = "excel_test_writer")]
     bench_e2e(&mut group, "xlsx", &fx.xlsx, &schema, &opts);
 
     group.finish();

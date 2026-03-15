@@ -3,8 +3,10 @@
 //! This crate ingests supported formats into an in-memory [`DataSet`], using a user-provided
 //! [`Schema`] (a list of typed [`Field`]s).
 
+use serde::{Deserialize, Serialize};
+
 /// Logical data type for a schema field.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DataType {
     /// 64-bit signed integer.
     Int64,
@@ -17,7 +19,7 @@ pub enum DataType {
 }
 
 /// A single named, typed field in a [`Schema`].
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Field {
     /// Field/column name.
     pub name: String,
@@ -36,7 +38,7 @@ impl Field {
 }
 
 /// A list of fields describing the expected shape of incoming data.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Schema {
     /// Ordered list of fields.
     pub fields: Vec<Field>,
@@ -60,7 +62,7 @@ impl Schema {
 }
 
 /// A single typed value in a [`DataSet`].
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Value {
     /// Missing/empty value.
     Null,
@@ -77,7 +79,7 @@ pub enum Value {
 /// In-memory tabular dataset.
 ///
 /// Rows are stored as `Vec<Vec<Value>>` in the same order as the [`Schema`] fields.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DataSet {
     /// Schema describing row shape.
     pub schema: Schema,

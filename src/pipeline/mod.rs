@@ -7,14 +7,65 @@
 //! - Keep the public API in our own types (no Polars types in signatures)
 //! - Support a minimal set of transformation primitives needed for parity/benchmarks
 //! - Provide deterministic, testable behavior (null handling, missing column errors)
+//!
+//! # Examples
+//!
+//! ```no_run
+//! use rust_data_processing::pipeline::{Agg, DataFrame, JoinKind, Predicate};
+//! use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
+//!
+//! # fn main() -> Result<(), rust_data_processing::IngestionError> {
+//! let ds = DataSet::new(
+//!     Schema::new(vec![
+//!         Field::new("id", DataType::Int64),
+//!         Field::new("active", DataType::Bool),
+//!         Field::new("score", DataType::Int64),
+//!         Field::new("grp", DataType::Utf8),
+//!     ]),
+//!     vec![
+//!         vec![Value::Int64(1), Value::Bool(true), Value::Int64(10), Value::Utf8("A".to_string())],
+//!         vec![Value::Int64(2), Value::Bool(true), Value::Null, Value::Utf8("A".to_string())],
+//!     ],
+//! );
+//!
+//! // Rename + cast + fill nulls.
+//! let cleaned = DataFrame::from_dataset(&ds)?
+//!     .rename(&[("score", "score_i")])?
+//!     .cast("score_i", DataType::Float64)?
+//!     .fill_null("score_i", Value::Float64(0.0))?;
+//!
+//! // Filter + group_by.
+//! let _out = cleaned
+//!     .filter(Predicate::Eq {
+//!         column: "active".to_string(),
+//!         value: Value::Bool(true),
+//!     })?
+//!     .group_by(
+//!         &["grp"],
+//!         &[Agg::Sum {
+//!             column: "score_i".to_string(),
+//!             alias: "sum_score".to_string(),
+//!         }],
+//!     )?
+//!     .collect()?;
+//!
+//! // Join two DataFrames.
+//! let left = DataFrame::from_dataset(&ds)?;
+//! let right = DataFrame::from_dataset(&ds)?;
+//! let _joined = left.join(right, &["id"], &["id"], JoinKind::Inner)?;
+//! # Ok(())
+//! # }
+//! ```
 
 use crate::error::{IngestionError, IngestionResult};
 use crate::ingestion::polars_bridge::{
     dataframe_to_dataset, dataset_to_dataframe, infer_schema_from_dataframe, polars_error_to_ingestion,
 };
-use crate::types::{DataSet, Value};
+use crate::types::{DataSet, DataType, Schema, Value};
 
 use polars::prelude::*;
+use polars::chunked_array::cast::CastOptions;
+use serde::{Deserialize, Serialize};
 
 /// A predicate used by [`DataFrame::filter`].
 #[derive(Debug, Clone, PartialEq)]
@@ -29,6 +80,43 @@ pub enum Predicate {
         modulus: i64,
         equals: i64,
     },
+}
+
+/// Join behavior for [`DataFrame::join`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JoinKind {
+    Inner,
+    Left,
+    Right,
+    Full,
+}
+
+/// Aggregations for [`DataFrame::group_by`].
+#[derive(Debug, Clone, PartialEq)]
+pub enum Agg {
+    /// Count rows in each group (includes nulls).
+    CountRows { alias: String },
+    /// Count non-null values of a column in each group.
+    CountNotNull { column: String, alias: String },
+    Sum { column: String, alias: String },
+    Min { column: String, alias: String },
+    Max { column: String, alias: String },
+}
+
+/// Casting behavior for [`DataFrame::cast_with_mode`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CastMode {
+    /// Casting errors fail the pipeline at `collect()` time.
+    Strict,
+    /// Casting errors yield nulls instead of failing.
+    Lossy,
+}
+
+impl Default for CastMode {
+    fn default() -> Self {
+        Self::Strict
+    }
 }
 
 /// A DataFrame-centric pipeline compiled into a lazy plan.
@@ -79,11 +167,142 @@ impl DataFrame {
         Ok(self)
     }
 
+    /// Add a constant Float64 value to a column (nulls remain null).
+    pub fn add_f64(mut self, column: &str, delta: f64) -> IngestionResult<Self> {
+        self.lf = self.lf.with_columns([(col(column) + lit(delta)).alias(column)]);
+        Ok(self)
+    }
+
+    /// Add a derived Float64 column: `name = source * factor` (nulls remain null).
+    pub fn with_mul_f64(mut self, name: &str, source: &str, factor: f64) -> IngestionResult<Self> {
+        self.lf = self
+            .lf
+            .with_columns([(col(source) * lit(factor)).alias(name)]);
+        Ok(self)
+    }
+
+    /// Add a derived Float64 column: `name = source + delta` (nulls remain null).
+    pub fn with_add_f64(mut self, name: &str, source: &str, delta: f64) -> IngestionResult<Self> {
+        self.lf = self
+            .lf
+            .with_columns([(col(source) + lit(delta)).alias(name)]);
+        Ok(self)
+    }
+
     /// Select a subset of columns (in the provided order).
     pub fn select(mut self, columns: &[&str]) -> IngestionResult<Self> {
         let exprs: Vec<Expr> = columns.iter().map(|c| col(*c)).collect();
         // Planning ops are infallible; errors surface at `collect` time.
         self.lf = self.lf.select(exprs);
+        Ok(self)
+    }
+
+    /// Rename columns.
+    ///
+    /// This uses Polars' `rename(..., strict=true)` behavior: all `from` columns must exist.
+    pub fn rename(mut self, pairs: &[(&str, &str)]) -> IngestionResult<Self> {
+        let (existing, new): (Vec<&str>, Vec<&str>) = pairs.iter().copied().unzip();
+        self.lf = self.lf.rename(existing, new, true);
+        Ok(self)
+    }
+
+    /// Cast a column to a target type.
+    ///
+    /// Note: cast errors (e.g. invalid parses) surface at `collect()` time.
+    pub fn cast(mut self, column: &str, to: DataType) -> IngestionResult<Self> {
+        self.cast_with_mode(column, to, CastMode::Strict)
+    }
+
+    /// Cast a column with an explicit mode (strict vs lossy).
+    pub fn cast_with_mode(mut self, column: &str, to: DataType, mode: CastMode) -> IngestionResult<Self> {
+        let dt = to_polars_dtype(&to);
+        let expr = match mode {
+            CastMode::Strict => col(column).strict_cast(dt),
+            CastMode::Lossy => col(column).cast_with_options(dt, CastOptions::NonStrict),
+        }
+        .alias(column);
+        self.lf = self.lf.with_columns([expr]);
+        Ok(self)
+    }
+
+    /// Drop columns by name.
+    pub fn drop(mut self, columns: &[&str]) -> IngestionResult<Self> {
+        let names: Vec<PlSmallStr> = columns.iter().map(|c| (*c).into()).collect();
+        let sel = Selector::ByName {
+            names: names.into(),
+            strict: true,
+        };
+        self.lf = self.lf.drop(sel);
+        Ok(self)
+    }
+
+    /// Fill nulls in a column with a literal.
+    pub fn fill_null(mut self, column: &str, value: Value) -> IngestionResult<Self> {
+        let lit_expr = value_to_lit_expr(value)?;
+        self.lf = self
+            .lf
+            .with_columns([col(column).fill_null(lit_expr).alias(column)]);
+        Ok(self)
+    }
+
+    /// Add a derived column with a literal value.
+    pub fn with_literal(mut self, name: &str, value: Value) -> IngestionResult<Self> {
+        let lit_expr = value_to_lit_expr(value)?;
+        self.lf = self.lf.with_columns([lit_expr.alias(name)]);
+        Ok(self)
+    }
+
+    /// Group rows by `keys` and compute aggregations.
+    pub fn group_by(mut self, keys: &[&str], aggs: &[Agg]) -> IngestionResult<Self> {
+        if keys.is_empty() {
+            return Err(IngestionError::SchemaMismatch {
+                message: "group_by requires at least one key column".to_string(),
+            });
+        }
+        if aggs.is_empty() {
+            return Err(IngestionError::SchemaMismatch {
+                message: "group_by requires at least one aggregation".to_string(),
+            });
+        }
+
+        let key_exprs: Vec<Expr> = keys.iter().map(|k| col(*k)).collect();
+        let agg_exprs: Vec<Expr> = aggs.iter().map(agg_to_expr).collect();
+        self.lf = self.lf.group_by(key_exprs).agg(agg_exprs);
+        Ok(self)
+    }
+
+    /// Join this pipeline with another [`DataFrame`] on key columns.
+    ///
+    /// Note: join planning is infallible; missing-column errors surface at `collect()` time.
+    pub fn join(mut self, other: DataFrame, left_on: &[&str], right_on: &[&str], how: JoinKind) -> IngestionResult<Self> {
+        if left_on.is_empty() || right_on.is_empty() {
+            return Err(IngestionError::SchemaMismatch {
+                message: "join requires at least one join key on each side".to_string(),
+            });
+        }
+        if left_on.len() != right_on.len() {
+            return Err(IngestionError::SchemaMismatch {
+                message: format!(
+                    "join requires left_on and right_on to have same length (left_on={}, right_on={})",
+                    left_on.len(),
+                    right_on.len()
+                ),
+            });
+        }
+
+        let left_exprs: Vec<Expr> = left_on.iter().map(|c| col(*c)).collect();
+        let right_exprs: Vec<Expr> = right_on.iter().map(|c| col(*c)).collect();
+
+        let how = match how {
+            JoinKind::Inner => JoinType::Inner,
+            JoinKind::Left => JoinType::Left,
+            JoinKind::Right => JoinType::Right,
+            JoinKind::Full => JoinType::Full,
+        };
+
+        self.lf = self
+            .lf
+            .join(other.lf, left_exprs, right_exprs, JoinArgs::new(how));
         Ok(self)
     }
 
@@ -95,6 +314,15 @@ impl DataFrame {
             .map_err(|e| polars_error_to_ingestion("failed to collect polars lazy plan", e))?;
         let out_schema = infer_schema_from_dataframe(&df)?;
         dataframe_to_dataset(&df, &out_schema, "column", 1)
+    }
+
+    /// Collect the pipeline into an in-memory [`DataSet`], enforcing an explicit output schema.
+    pub fn collect_with_schema(self, schema: &Schema) -> IngestionResult<DataSet> {
+        let df = self
+            .lf
+            .collect()
+            .map_err(|e| polars_error_to_ingestion("failed to collect polars lazy plan", e))?;
+        dataframe_to_dataset(&df, schema, "column", 1)
     }
 
     /// Reduce a numeric column by summing values (nulls ignored; all-null -> null).
@@ -131,6 +359,45 @@ impl DataFrame {
         })?;
         Ok(Some(anyvalue_to_value(av)))
     }
+
+    pub(crate) fn lazy_clone(&self) -> LazyFrame {
+        self.lf.clone()
+    }
+
+    pub(crate) fn from_lazyframe(lf: LazyFrame) -> Self {
+        Self { lf }
+    }
+}
+
+fn agg_to_expr(agg: &Agg) -> Expr {
+    match agg {
+        Agg::CountRows { alias } => len().alias(alias.as_str()),
+        Agg::CountNotNull { column, alias } => col(column.as_str()).count().alias(alias.as_str()),
+        Agg::Sum { column, alias } => col(column.as_str()).sum().alias(alias.as_str()),
+        Agg::Min { column, alias } => col(column.as_str()).min().alias(alias.as_str()),
+        Agg::Max { column, alias } => col(column.as_str()).max().alias(alias.as_str()),
+    }
+}
+
+fn to_polars_dtype(dt: &DataType) -> polars::datatypes::DataType {
+    match dt {
+        DataType::Int64 => polars::datatypes::DataType::Int64,
+        DataType::Float64 => polars::datatypes::DataType::Float64,
+        DataType::Bool => polars::datatypes::DataType::Boolean,
+        DataType::Utf8 => polars::datatypes::DataType::String,
+    }
+}
+
+fn value_to_lit_expr(value: Value) -> IngestionResult<Expr> {
+    match value {
+        Value::Null => Err(IngestionError::SchemaMismatch {
+            message: "Value::Null is not supported as a literal expression; use fill_null or cast/collect to materialize".to_string(),
+        }),
+        Value::Int64(v) => Ok(lit(v)),
+        Value::Float64(v) => Ok(lit(v)),
+        Value::Bool(v) => Ok(lit(v)),
+        Value::Utf8(v) => Ok(lit(v)),
+    }
 }
 
 fn anyvalue_to_value(av: AnyValue) -> Value {
@@ -150,7 +417,7 @@ pub type PolarsPipeline = DataFrame;
 
 #[cfg(test)]
 mod tests {
-    use super::{DataFrame, PolarsPipeline, Predicate};
+    use super::{Agg, DataFrame, JoinKind, PolarsPipeline, Predicate};
     use crate::processing::{filter, map, reduce, ReduceOp};
     use crate::types::{DataSet, DataType, Field, Schema, Value};
 
@@ -262,6 +529,117 @@ mod tests {
     fn backwards_compatible_polars_pipeline_alias_exists() {
         let ds = sample_dataset();
         let _ = PolarsPipeline::from_dataset(&ds).unwrap().select(&["id"]).unwrap();
+    }
+
+    #[test]
+    fn rename_cast_fill_null_group_by_and_join_work() {
+        // rename + cast + fill_null
+        let schema = Schema::new(vec![
+            Field::new("id", DataType::Int64),
+            Field::new("score", DataType::Int64),
+        ]);
+        let ds = DataSet::new(
+            schema,
+            vec![
+                vec![Value::Int64(1), Value::Int64(10)],
+                vec![Value::Int64(2), Value::Null],
+            ],
+        );
+
+        let out = DataFrame::from_dataset(&ds)
+            .unwrap()
+            .rename(&[("score", "score_i")])
+            .unwrap()
+            .cast("score_i", DataType::Float64)
+            .unwrap()
+            .fill_null("score_i", Value::Float64(0.0))
+            .unwrap()
+            .collect()
+            .unwrap();
+
+        assert_eq!(out.schema.field_names().collect::<Vec<_>>(), vec!["id", "score_i"]);
+        assert_eq!(out.rows[0][1], Value::Float64(10.0));
+        assert_eq!(out.rows[1][1], Value::Float64(0.0));
+
+        // group_by
+        let schema = Schema::new(vec![
+            Field::new("grp", DataType::Utf8),
+            Field::new("score", DataType::Float64),
+        ]);
+        let ds = DataSet::new(
+            schema,
+            vec![
+                vec![Value::Utf8("A".to_string()), Value::Float64(1.0)],
+                vec![Value::Utf8("A".to_string()), Value::Float64(2.0)],
+                vec![Value::Utf8("B".to_string()), Value::Null],
+            ],
+        );
+
+        let out = DataFrame::from_dataset(&ds)
+            .unwrap()
+            .group_by(
+                &["grp"],
+                &[
+                    Agg::Sum {
+                        column: "score".to_string(),
+                        alias: "sum_score".to_string(),
+                    },
+                    Agg::CountRows {
+                        alias: "cnt".to_string(),
+                    },
+                ],
+            )
+            .unwrap()
+            .collect()
+            .unwrap();
+
+        // Order is not guaranteed; validate via a lookup.
+        let mut sums: std::collections::HashMap<String, (Value, Value)> = std::collections::HashMap::new();
+        for row in &out.rows {
+            if let Value::Utf8(g) = &row[0] {
+                sums.insert(g.clone(), (row[1].clone(), row[2].clone()));
+            }
+        }
+        assert_eq!(
+            sums.get("A"),
+            Some(&(Value::Float64(3.0), Value::Int64(2)))
+        );
+        assert_eq!(
+            sums.get("B"),
+            // Polars `sum` ignores nulls and returns 0.0 for all-null groups.
+            Some(&(Value::Float64(0.0), Value::Int64(1)))
+        );
+
+        // join
+        let left = DataSet::new(
+            Schema::new(vec![Field::new("id", DataType::Int64), Field::new("name", DataType::Utf8)]),
+            vec![
+                vec![Value::Int64(1), Value::Utf8("Ada".to_string())],
+                vec![Value::Int64(2), Value::Utf8("Grace".to_string())],
+            ],
+        );
+        let right = DataSet::new(
+            Schema::new(vec![Field::new("id", DataType::Int64), Field::new("score", DataType::Float64)]),
+            vec![
+                vec![Value::Int64(1), Value::Float64(9.0)],
+                vec![Value::Int64(3), Value::Float64(7.0)],
+            ],
+        );
+
+        let out = DataFrame::from_dataset(&left)
+            .unwrap()
+            .join(
+                DataFrame::from_dataset(&right).unwrap(),
+                &["id"],
+                &["id"],
+                JoinKind::Inner,
+            )
+            .unwrap()
+            .collect()
+            .unwrap();
+        assert_eq!(out.row_count(), 1);
+        // One matched row with id=1.
+        assert_eq!(out.rows[0][0], Value::Int64(1));
     }
 }
 

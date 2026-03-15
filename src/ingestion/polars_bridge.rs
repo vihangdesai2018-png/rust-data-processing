@@ -24,8 +24,15 @@ pub(crate) fn infer_schema_from_dataframe(df: &DataFrame) -> IngestionResult<Sch
     for col in df.columns() {
         let s = col.as_materialized_series();
         let dt = match s.dtype() {
-            P::Int64 => DataType::Int64,
-            P::Float64 => DataType::Float64,
+            P::Int8
+            | P::Int16
+            | P::Int32
+            | P::Int64
+            | P::UInt8
+            | P::UInt16
+            | P::UInt32
+            | P::UInt64 => DataType::Int64,
+            P::Float32 | P::Float64 => DataType::Float64,
             P::Boolean => DataType::Bool,
             P::String => DataType::Utf8,
             other => {

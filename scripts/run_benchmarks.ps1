@@ -1,6 +1,6 @@
 param(
-  # Which bench target to run: pipelines | ingestion | map_reduce | all
-  [ValidateSet('pipelines','ingestion','map_reduce','all')]
+  # Which bench target to run: pipelines | ingestion | map_reduce | profiling | all
+  [ValidateSet('pipelines','ingestion','map_reduce','profiling','all')]
   [string]$Bench = 'all',
 
   # Faster Criterion run (useful for local iteration).
@@ -54,7 +54,8 @@ try {
     'pipelines' { $benches = @('pipelines') }
     'ingestion' { $benches = @('ingestion') }
     'map_reduce' { $benches = @('map_reduce') }
-    'all' { $benches = @('pipelines','ingestion','map_reduce') }
+    'profiling' { $benches = @('profiling') }
+    'all' { $benches = @('pipelines','ingestion','map_reduce','profiling') }
   }
 
   foreach ($b in $benches) {

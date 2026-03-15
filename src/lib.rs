@@ -66,6 +66,10 @@
 //! - [`types`]: schema + in-memory dataset types
 //! - [`processing`]: in-memory dataset transformations (filter/map/reduce)
 //! - [`execution`]: execution engine for parallel pipelines + throttling + metrics
+//! - `sql`: SQL support (Polars-backed; enabled by default)
+//! - [`transform`]: serde-friendly transformation spec compiled to pipeline wrappers
+//! - [`profiling`]: Polars-backed profiling metrics + sampling modes
+//! - [`cdc`]: CDC boundary types (Phase 1 spike)
 //! - [`error`]: error types used across ingestion
 //!
 //! ## Processing example (1.2 pipeline)
@@ -154,6 +158,9 @@ pub mod ingestion;
 pub mod pipeline;
 pub mod processing;
 pub mod execution;
+pub mod cdc;
+pub mod profiling;
+pub mod transform;
 pub mod types;
 #[cfg(feature = "sql")]
 pub mod sql;

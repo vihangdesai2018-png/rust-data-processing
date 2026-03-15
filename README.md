@@ -1,10 +1,39 @@
 # rust-data-processing
 
-Small Rust library for ingesting common file formats (CSV / JSON / Parquet / Excel) into an in-memory
-`DataSet`, with basic schema validation, a DataFrame-centric pipeline API (Polars-backed), and optional observability hooks.
+Rust library for ingesting common file formats (CSV / JSON / Parquet / Excel (feature-gated)) into an in-memory `DataSet`, with schema
+validation + inference helpers, in-memory + parallel processing primitives, and a Polars-backed DataFrame-centric pipeline API.
+Phase 1 also targets profiling/validation/outlier-detection APIs and report formats, while keeping a small engine-agnostic public
+surface (SQL support is Polars-backed).
 
 - **API docs**: generate with `./scripts/build_docs.ps1` (see below)
 - **Status**: library APIs are in `src/lib.rs`; the binary (`src/main.rs`) is currently just a placeholder.
+- **Developer guide**: see `README_DEV.md` (module map, workflows, conventions)
+- **Benchmark snapshot (pipeline bench)**: on this repo (Windows, Criterion), `filter → map → reduce(sum)`:
+  - **In-memory `processing`**:
+    - 100k rows: ~10.42 ms median (\(\approx 9.6\) million rows/sec)
+    - 1M rows: ~113.5 ms median (\(\approx 8.8\) million rows/sec)
+  - **Polars-backed `pipeline::DataFrame` (lazy)**:
+    - 100k rows: ~7.80 ms median (\(\approx 12.8\) million rows/sec)
+    - 1M rows: ~74.10 ms median (\(\approx 13.5\) million rows/sec)
+  - **Reproduce**: `cargo bench --bench pipelines -- --warm-up-time 2 --measurement-time 6 --sample-size 50`
+
+## Phase 1 scope (roadmap)
+
+Canonical checklist lives in `Planning/PHASE1_PLAN.md`; this section is the README-friendly summary.
+
+- [x] Polars-first delegation for ingestion + DataFrame-centric pipelines
+- [x] Polars-backed SQL support (default-on)
+- [x] Engine-agnostic configuration (`IngestionOptionsBuilder`) + unified error model (`IngestionError`)
+- [x] Benchmarks + parity checks (ingestion + pipelines + end-to-end)
+- [x] Cookbook examples (Polars-first docs + SQL examples)
+- [x] “Pit of success” defaults (sane knobs; avoid promising engine-specific tuning we can’t support)
+- [x] Feature flags + dependency surface minimization
+- [x] Transformation wrappers + end-user transformation schema/spec (“to/from”) on top of Polars + existing in-memory layers
+- [x] Feature-gated direct DB ingestion via ConnectorX (DB → Arrow → `DataSet`) + compatibility research notes
+- [x] CDC feasibility spike + interface boundary (Phase 2 candidate)
+- [x] Profiling APIs: metrics set + sampling/large-data modes
+- [ ] Validation APIs: DSL + built-in checks + severity handling + reporting
+- [ ] Outlier detection: primitives + explainable outputs
 
 ## Platform support
 
@@ -103,6 +132,248 @@ let out = DataFrame::from_dataset(&ds)?
 assert_eq!(out.row_count(), 2);
 ```
 
+## SQL queries (Polars-backed) (Phase 1)
+
+The `rust_data_processing::sql` module compiles SQL into a Polars lazy plan and returns a `pipeline::DataFrame`.
+
+Single-table query (table name is `df`):
+
+```rust
+use rust_data_processing::pipeline::DataFrame;
+use rust_data_processing::sql;
+
+let out = sql::query(
+    &DataFrame::from_dataset(&ds)?,
+    "SELECT id, score FROM df WHERE active = TRUE ORDER BY id DESC LIMIT 10",
+)?
+.collect()?;
+```
+
+Multi-table JOINs via a context:
+
+```rust
+use rust_data_processing::pipeline::DataFrame;
+use rust_data_processing::sql;
+
+let mut ctx = sql::Context::new();
+ctx.register("people", &DataFrame::from_dataset(&people)?)?;
+ctx.register("scores", &DataFrame::from_dataset(&scores)?)?;
+
+let out = ctx
+    .execute("SELECT p.id, p.name, s.score FROM people p JOIN scores s ON p.id = s.id")?
+    .collect()?;
+```
+
+## Direct DB ingestion (ConnectorX) (feature-gated)
+
+Enable the feature:
+
+```powershell
+cargo test --features db_connectorx
+```
+
+Example (Postgres):
+
+```rust
+use rust_data_processing::ingestion::ingest_from_db_infer;
+
+// Example: cxprotocol=binary for Postgres.
+let ds = ingest_from_db_infer(
+    "postgresql://user:pass@localhost:5432/db?cxprotocol=binary",
+    "SELECT id, score, active FROM my_table",
+)?;
+println!("rows={}", ds.row_count());
+```
+
+## End-user transformation spec (TransformSpec) (Phase 1)
+
+`transform::TransformSpec` is a serde-friendly “mapping spec” that compiles to our Polars-backed pipeline wrappers
+while keeping the public API engine-agnostic.
+
+```rust
+use rust_data_processing::pipeline::CastMode;
+use rust_data_processing::transform::{TransformSpec, TransformStep};
+use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
+
+let ds = DataSet::new(
+    Schema::new(vec![
+        Field::new("id", DataType::Int64),
+        Field::new("score", DataType::Int64),
+        Field::new("weather", DataType::Utf8),
+    ]),
+    vec![
+        vec![Value::Int64(1), Value::Int64(10), Value::Utf8("drizzle".to_string())],
+        vec![Value::Int64(2), Value::Null, Value::Utf8("rain".to_string())],
+    ],
+);
+
+let out_schema = Schema::new(vec![
+    Field::new("id", DataType::Int64),
+    Field::new("score_f", DataType::Float64),
+    Field::new("wx", DataType::Utf8),
+]);
+
+let spec = TransformSpec::new(out_schema.clone())
+    .with_step(TransformStep::Rename {
+        pairs: vec![("weather".to_string(), "wx".to_string())],
+    })
+    .with_step(TransformStep::Rename {
+        pairs: vec![("score".to_string(), "score_f".to_string())],
+    })
+    .with_step(TransformStep::Cast {
+        column: "score_f".to_string(),
+        to: DataType::Float64,
+        mode: CastMode::Lossy,
+    })
+    .with_step(TransformStep::FillNull {
+        column: "score_f".to_string(),
+        value: Value::Float64(0.0),
+    })
+    .with_step(TransformStep::Select {
+        columns: vec!["id".to_string(), "score_f".to_string(), "wx".to_string()],
+    });
+
+let out = spec.apply(&ds)?;
+assert_eq!(out.schema, out_schema);
+```
+
+## Profiling (Phase 1)
+
+Use `profiling::profile_dataset` to compute common metrics. For large data, start with deterministic sampling via `Head(n)`.
+
+```rust
+use rust_data_processing::profiling::{profile_dataset, ProfileOptions, SamplingMode};
+use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
+
+let ds = DataSet::new(
+    Schema::new(vec![Field::new("score", DataType::Float64)]),
+    vec![vec![Value::Float64(1.0)], vec![Value::Null], vec![Value::Float64(3.0)]],
+);
+
+let rep = profile_dataset(
+    &ds,
+    &ProfileOptions {
+        sampling: SamplingMode::Head(2),
+        quantiles: vec![0.5],
+    },
+)?;
+
+assert_eq!(rep.row_count, 2);
+assert_eq!(rep.columns[0].null_count, 1);
+```
+
+## CDC interface boundary (Phase 1 spike)
+
+The `cdc` module defines crate-owned boundary types for CDC events without picking a concrete CDC implementation dependency.
+
+```rust
+use rust_data_processing::cdc::{CdcEvent, CdcOp, RowImage, SourceMeta, TableRef};
+use rust_data_processing::types::Value;
+
+let ev = CdcEvent {
+    meta: SourceMeta { source: Some("db".to_string()), checkpoint: None },
+    table: TableRef::with_schema("public", "users"),
+    op: CdcOp::Insert,
+    before: None,
+    after: Some(RowImage::new(vec![
+        ("id".to_string(), Value::Int64(1)),
+        ("name".to_string(), Value::Utf8("Ada".to_string())),
+    ])),
+};
+
+assert_eq!(ev.op, CdcOp::Insert);
+```
+
+## Cookbook (Phase 1)
+
+### Stable transformation wrappers (Polars-backed, engine-agnostic types)
+
+Rename + cast + fill nulls:
+
+```rust
+use rust_data_processing::pipeline::DataFrame;
+use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
+
+let ds = DataSet::new(
+    Schema::new(vec![
+        Field::new("id", DataType::Int64),
+        Field::new("score", DataType::Int64),
+    ]),
+    vec![vec![Value::Int64(1), Value::Int64(10)], vec![Value::Int64(2), Value::Null]],
+);
+
+let out = DataFrame::from_dataset(&ds)?
+    .rename(&[("score", "score_i")])?
+    .cast("score_i", DataType::Float64)?
+    .fill_null("score_i", Value::Float64(0.0))?
+    .collect()?;
+```
+
+Group-by aggregates:
+
+```rust
+use rust_data_processing::pipeline::{Agg, DataFrame};
+use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
+
+let ds = DataSet::new(
+    Schema::new(vec![
+        Field::new("grp", DataType::Utf8),
+        Field::new("score", DataType::Float64),
+    ]),
+    vec![
+        vec![Value::Utf8("A".to_string()), Value::Float64(1.0)],
+        vec![Value::Utf8("A".to_string()), Value::Float64(2.0)],
+        vec![Value::Utf8("B".to_string()), Value::Null],
+    ],
+);
+
+let out = DataFrame::from_dataset(&ds)?
+    .group_by(
+        &["grp"],
+        &[
+            Agg::Sum {
+                column: "score".to_string(),
+                alias: "sum_score".to_string(),
+            },
+            Agg::CountRows {
+                alias: "cnt".to_string(),
+            },
+        ],
+    )?
+    .collect()?;
+```
+
+Note: Polars aggregation semantics apply (e.g. `SUM` ignores nulls and may return `0` for all-null groups).
+
+Join two DataFrames:
+
+```rust
+use rust_data_processing::pipeline::{DataFrame, JoinKind};
+use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
+
+let people = DataSet::new(
+    Schema::new(vec![
+        Field::new("id", DataType::Int64),
+        Field::new("name", DataType::Utf8),
+    ]),
+    vec![
+        vec![Value::Int64(1), Value::Utf8("Ada".to_string())],
+        vec![Value::Int64(2), Value::Utf8("Grace".to_string())],
+    ],
+);
+let scores = DataSet::new(
+    Schema::new(vec![Field::new("id", DataType::Int64), Field::new("score", DataType::Float64)]),
+    vec![
+        vec![Value::Int64(1), Value::Float64(9.0)],
+        vec![Value::Int64(3), Value::Float64(7.0)],
+    ],
+);
+
+let out = DataFrame::from_dataset(&people)?
+    .join(DataFrame::from_dataset(&scores)?, &["id"], &["id"], JoinKind::Inner)?
+    .collect()?;
+```
+
 ## What data can be consumed? (Epic 1 / Stories 1.1–1.2)
 
 ### File formats (auto-detected by extension)
@@ -111,7 +382,7 @@ assert_eq!(out.row_count(), 2);
 - **JSON**: `.json` (array-of-objects) and `.ndjson` (newline-delimited objects)
   - Nested fields are supported via **dot paths** in schema field names (e.g. `user.name`)
 - **Parquet**: `.parquet`, `.pq`
-- **Excel/workbooks**: `.xlsx`, `.xls`, `.xlsm`, `.xlsb`, `.ods`
+- **Excel/workbooks**: `.xlsx`, `.xls`, `.xlsm`, `.xlsb`, `.ods` (requires feature `excel`)
 
 ### Supported value types
 
@@ -242,6 +513,8 @@ Additional benchmark targets:
   - Measures schema-known vs schema-inferred and a “warm vs rotating files” proxy for cache effects
 - `cargo bench --bench map_reduce`
   - Benchmarks filter/map/reduce on in-memory `DataSet` vs `ExecutionEngine` parallel path
+- `cargo bench --bench profiling`
+  - Benchmarks `profiling::profile_dataset` (full vs head sampling)
 
 Convenience runner (Windows / PowerShell):
 
@@ -285,7 +558,24 @@ fn main() -> Result<(), rust_data_processing::IngestionError> {
 
 - `excel`: enable Excel ingestion (adds `calamine`)
 - `excel_test_writer`: enables Excel integration tests that generate an `.xlsx` at runtime
-- `sql`: enables the (currently minimal) `rust_data_processing::sql` module
+- `sql`: enable Polars-backed SQL support (adds `polars-sql`). **Enabled by default**.
+- `db_connectorx`: enable direct DB ingestion via ConnectorX (DB → Arrow → `DataSet`) including Postgres/MySQL/MS SQL/Oracle sources
+- `arrow`: enable Arrow interop helpers (adds `arrow`)
+- `serde_arrow`: enable Serde-based Arrow interop helpers (adds `serde` + `serde_arrow`)
+- Note: ConnectorX’s Postgres support uses OpenSSL; on Windows you may need additional build prerequisites (e.g. Perl for vendored OpenSSL or a system OpenSSL install).
+
+Disable default features (including SQL) if you want a smaller dependency surface:
+
+```toml
+[dependencies]
+rust-data-processing = { path = ".", default-features = false }
+```
+
+## “Pit of success” defaults (Phase 1)
+
+- **Ingestion defaults**: format is auto-detected by extension; observers are off by default; failures are surfaced as `IngestionError` (no automatic retries).
+- **Execution defaults**: `ExecutionOptions::default()` uses available parallelism, a moderate `chunk_size`, and throttles in-flight chunks.
+- **Polars pipelines + SQL**: we intentionally avoid exposing engine-specific tuning knobs in the public API. If you need low-level tuning, use Polars’ own configuration (e.g. environment variables) and treat behavior as Polars-owned.
 
 ## Run tests
 

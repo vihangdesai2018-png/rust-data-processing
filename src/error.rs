@@ -15,6 +15,7 @@ pub enum IngestionError {
     Io(#[from] std::io::Error),
 
     /// Excel ingestion error.
+    #[cfg(feature = "excel")]
     #[error("excel error: {0}")]
     Excel(#[from] calamine::Error),
 

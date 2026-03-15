@@ -13,21 +13,16 @@ How to use:
 
 | Backlog | In Progress | Done |
 |---|---|---|
-| - [ ]  | - [ ]  | - [x] Historical baseline implemented (pre-Polars strategy shift) |
-| - [ ]  | - [ ]  | - [x] 0.3.1 Delegation boundaries (see `ENGINE_STRATEGY.md`) |
-| - [ ]  | - [ ]  | - [x] 0.3.3 Refactor ingestion APIs to delegate to Polars scans/reads |
-| - [ ]  | - [ ]  | - [x] 0.3.4 Refactor transforms/pipeline APIs to delegate to Polars lazy plan |
-| - [ ] 7.1.1 Public API shape + naming conventions (ergonomic surface) | - [ ]  | - [x] 0.3.2 Engine selection strategy (see `ENGINE_STRATEGY.md`) |
-| - [ ]  | - [ ]  | - [x] 0.3.4 Benchmarks suite: ingestion (20k) + map/reduce + end-to-end ingest→reduce |
-| - [ ]  | - [ ]  | - [x] 0.3.4 Bench dimensions: warm vs rotating files, schema known vs inferred, JSON array vs NDJSON vs nested, Excel variability (feature-gated) |
-| - [ ] 7.1.2 Builder-based configuration (avoid long arg lists) | - [ ]  | - [ ]  |
-| - [ ] 7.1.3 Error model + diagnostics (actionable messages) | - [ ]  | - [ ]  |
-| - [ ] 7.1.4 Cookbook examples (Rust-first docs) | - [ ]  | - [ ]  |
-| - [ ] 7.2.1 "Pit of success" defaults (parallelism, memory, retries) | - [ ]  | - [ ]  |
-| - [ ] 7.2.2 Feature flags & minimal dependency surface for a cargo library | - [ ]  | - [ ]  |
-| - [ ] 10.1.1 Profiling metrics set (nulls, distinct, quantiles, etc.) | - [ ]  | - [ ]  |
-| - [ ] 10.1.2 Sampling/streaming-friendly profiling modes | - [ ]  | - [ ]  |
-| - [ ] 10.1.3 Profile report formats (JSON + Markdown) | - [ ]  | - [ ]  |
+| - [x] 7.1.4 Cookbook examples (Rust-first docs) | - [ ]  | - [x] Historical baseline implemented (pre-Polars strategy shift) |
+| - [x] 7.2.1 "Pit of success" defaults (parallelism, memory, retries) | - [ ]  | - [x] 0.3.1 Delegation boundaries (see `ENGINE_STRATEGY.md`) |
+| - [x] 7.2.2 Feature flags & minimal dependency surface for a cargo library | - [ ]  | - [x] 0.3.2 Engine selection strategy (see `ENGINE_STRATEGY.md`) |
+| - [x] 7.3.1 Transformation wrappers (Polars-first, engine-agnostic public types) | - [ ]  | - [x] 0.3.3 Refactor ingestion APIs to delegate to Polars scans/reads |
+| - [x] 7.3.2 End-user transformation schema/spec (mapping + serde + expr-plan wrapper) | - [ ]  | - [x] 0.3.4 Refactor transforms/pipeline APIs to delegate to Polars lazy plan |
+| - [x] 7.3.3 Direct DB ingestion (ConnectorX → Polars/Arrow → `DataSet`) (feature-gated) | - [ ]  | - [x] 0.3.4 Benchmarks suite: ingestion (20k) + map/reduce + end-to-end ingest→reduce |
+| - [x] 7.3.4 CDC feasibility spike + interface boundary (Phase 2 candidate) | - [ ]  | - [x] 0.3.4 Bench dimensions: warm vs rotating files, schema known vs inferred, JSON array vs NDJSON vs nested, Excel variability (feature-gated) |
+| - [ ] 10.1.1 Profiling metrics set (nulls, distinct, quantiles, etc.) | - [ ]  | - [x] 7.1.1 Public API shape + naming conventions (ergonomic surface) |
+| - [ ] 10.1.2 Sampling/streaming-friendly profiling modes | - [ ]  | - [x] 7.1.2 Builder-based configuration (avoid long arg lists) |
+| - [ ] 10.1.3 Profile report formats (JSON + Markdown) | - [ ]  | - [x] 7.1.3 Error model + diagnostics (actionable messages) |
 | - [ ] 10.2.1 Validation DSL (schema + rule declarations) | - [ ]  | - [ ]  |
 | - [ ] 10.2.2 Built-in checks (ranges, uniqueness, regex, nullability) | - [ ]  | - [ ]  |
 | - [ ] 10.2.3 Severity handling (warn vs fail) + reporting | - [ ]  | - [ ]  |
@@ -40,7 +35,7 @@ Use this as a short “research checklist” while implementing each item.
 
 - [x] **0.3.1 Delegation boundaries**
   - **Check**: Which parts are naturally **Polars-native** (LazyFrame + expressions) vs which require **DataFusion** (SQL-first) vs **custom** (Excel advanced).
-  - **Preferred (Phase 1)**: Polars for execution; keep DataFusion as optional backend only if SQL becomes core.
+  - **Preferred (Phase 1)**: Polars for execution; SQL compiles via Polars SQL; keep DataFusion optional only if we need SQL completeness beyond Polars SQL.
 
 - [x] **0.3.2 Engine selection strategy (Polars default; DataFusion optional)**
   - **Check**: Do we need **SQL completeness** as a product requirement?
@@ -72,37 +67,72 @@ Use this as a short “research checklist” while implementing each item.
   - [x] **Map/Reduce**: in-memory vs `ExecutionEngine` parallel path; plus ingest→reduce end-to-end
   - [x] **Runner**: PowerShell convenience runner for all benches (`scripts/run_benchmarks.ps1`)
 
-- **7.1.1 Public API shape + naming conventions**
+- [x] **7.1.1 Public API shape + naming conventions**
   - **Check**: Polars-first API vs SQL-first API (DataFusion-style) — which do we want to present publicly?
-  - **Preferred (Phase 1)**: Polars-first, DataFrame-centric API; SQL support optional behind a feature.
+  - **Preferred (Phase 1)**: Polars-first, DataFrame-centric API; SQL supported via Polars SQL.
 
-- **7.1.2 Builder-based configuration**
+- [x] **7.1.2 Builder-based configuration**
   - **Check**: Builder configs should be engine-agnostic; avoid leaking Polars/DataFusion types publicly unless intentional.
   - **Preferred (Phase 1)**: Engine-agnostic configs, Polars-backed implementation.
 
-- **7.1.3 Error model + diagnostics**
+- [x] **7.1.3 Error model + diagnostics**
   - **Check**: Map Polars/DataFusion errors into a single public error type (and keep their details).
   - **Preferred (Phase 1)**: Unified error model regardless of engine.
 
-- **7.1.4 Cookbook examples**
-  - **Check**: Provide Polars-first examples; optionally include “SQL example” only if we decide SQL is supported.
-  - **Preferred (Phase 1)**: Polars-first docs; SQL docs optional.
+- [x] **7.1.4 Cookbook examples**
+  - **Check**: Provide Polars-first examples and SQL examples (Polars-backed).
+  - **Preferred (Phase 1)**: Polars-first docs plus SQL cookbook.
 
-- **7.2.1 "Pit of success" defaults**
+- [x] **7.2.1 "Pit of success" defaults**
   - **Check**: What knobs exist in Polars for parallelism/memory/streaming behaviors? Don’t promise knobs that don’t exist.
   - **Preferred (Phase 1)**: Safe defaults in our wrapper; minimal surfacing of engine-specific tuning.
 
-- **7.2.2 Feature flags & minimal dependency surface**
+- [x] **7.2.2 Feature flags & minimal dependency surface**
   - **Check**: Keep DataFusion behind a feature flag if included; keep Excel behind a feature flag if it pulls heavy deps.
   - **Preferred (Phase 1)**: Small default feature set; opt-in connectors.
 
-- **10.1.1 Profiling metrics set**
-  - **Check**: Can Polars compute these efficiently on LazyFrames? (some may require materialization; verify).
-  - **Preferred (Phase 1)**: Implement on Polars; keep an interface that could support DataFusion later.
+- [x] **7.3.1 Transformation wrappers (Polars-first)**
+  - **Check**: Which transformations do we want to support as stable wrappers (select/rename/cast/derive/filter/aggregate/join)?
+  - **Check**: Ensure public API stays engine-agnostic (no Polars types in signatures) while compiling to Polars expressions internally.
+  - **Check**: Add parity tests + benchmarks per wrapper to make behavior and perf deltas explicit.
+  - **Preferred (Phase 1)**: Add thin wrappers that compile to Polars lazy plans; fall back to `processing`/`execution` for row-wise or unsupported ops.
 
-- **10.1.2 Sampling/large-data modes**
-  - **Check**: Polars streaming coverage for operations you need (some operations may fall back to in-memory).
-  - **Preferred (Phase 1)**: Sampling-first design to avoid relying on experimental streaming guarantees.
+- [x] **7.3.2 End-user transformation schema/spec ("to/from")**
+  - **Done**: Implemented a minimal, serde-friendly mapping spec as `transform::{TransformSpec, TransformStep}`:
+    - rename / drop / select / reorder columns
+    - cast types (strict vs lossy via `pipeline::CastMode`)
+    - fill defaults (null→value) and simple derived columns (literals + simple numeric derives)
+  - **Done**: `serde_arrow` evaluation result: provided feature-gated `serde_arrow` interop (kept out of default build).
+  - **Note**: Expression-plan wrapper kept intentionally small by compiling to existing pipeline wrappers (no Polars types in public signatures).
+
+- [x] **7.3.3 Direct DB ingestion (ConnectorX)**
+  - **Done**: Feature-gated, minimal DB ingestion in `ingestion::db` (read-only; `ingest_from_db` + `ingest_from_db_infer`).
+  - **Done**: Type mapping rules implemented (Arrow → our `DataType`), with lossy inference mapping unknown types to `Utf8`.
+  - **Done**: Compatibility note captured in implementation: ConnectorX Rust crate pins Arrow/Polars versions; we use `dst_arrow` and convert to `DataSet` to avoid Polars type mismatches.
+  - **Preferred (Phase 1)**: Feature-gated entrypoints that produce `DataSet`, without dump parsing.
+
+  
+  - **7.3.3.1 (Plan)**: Add support for **MS SQL** and **Oracle** (feature-gated; keep API surface identical to existing `ingest_from_db*`; document any type-mapping limitations).
+
+- [x] **7.3.4 CDC feasibility spike + interface boundary**
+  - **Done**: Implemented a minimal, dependency-free CDC boundary module `cdc` with `CdcEvent`/`CdcOp`/`TableRef` and a batch-first `CdcSource` trait.
+  - **Decision**: Expose **batch-first** consumption at the boundary to avoid forcing an async/runtime choice into the crate; downstream can adapt to streams if needed.
+  - **Integration sketch**: Phase 2 can materialize `after` images to `DataSet` (or build a pipeline start) using our existing `Schema` + `Value` types; keep CDC separate from SQL/ingestion paths.
+  - **Survey notes (2026)**:
+    - `rivven-cdc`: multi-DB (Postgres/MySQL/MariaDB/SQL Server) CDC abstraction; promising but still early (0.x), would be Phase 2+.
+    - `pg_walstream` / `pgwire-replication`: Postgres logical replication building blocks; lower-level than we want for Phase 1.
+  - **Preferred (Phase 1)**: Research + interface design only (no default CDC dependency); shipping a concrete CDC connector remains Phase 2 unless it becomes core.
+
+- [x] **10.1.1 Profiling metrics set**
+  - **Done**: Added `profiling` module with Polars-backed profiling (`profile_dataset` / `profile_frame`) returning crate-owned report types.
+  - **Done**: Metrics implemented (Phase 1): row count, per-column null count, per-column distinct (non-null) count, and numeric stats (min/max/mean + quantiles).
+  - **Done**: Unit tests + deep test coverage (real fixtures) added.
+  - **Note**: Metrics are computed from a lazy plan and then collected once into a single-row aggregation.
+
+- [x] **10.1.2 Sampling/large-data modes**
+  - **Done**: Implemented `profiling::SamplingMode` with a deterministic `Head(n)` option and `Full`.
+  - **Done**: Deep test validates sampling determinism on realistic fixtures.
+  - **Note**: Random sampling is intentionally not provided in Phase 1 because Polars Rust LazyFrame lacks a simple row-wise random sampling API; head sampling avoids streaming assumptions.
 
 - **10.1.3 Profile report formats**
   - **Check**: No engine dependency; pure product-layer.
@@ -132,5 +162,6 @@ Use this as a short “research checklist” while implementing each item.
 
 - Engine baseline: **Polars-first**. DataFusion remains an optional backend, mainly for SQL completeness and extensibility.
 - Packaging: Phase 1 ships as a **cargo library** (avoid requiring a running service).
+- DB ingestion: prefer **direct DB reads via ConnectorX → Polars/Arrow** (feature-gated). Avoid dump parsing in core.
 - Decision record / delegation matrix: see `ENGINE_STRATEGY.md`.
 
