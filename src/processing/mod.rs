@@ -7,7 +7,9 @@
 //!
 //! - [`filter()`]: row filtering by predicate
 //! - [`map()`]: row mapping by user function
-//! - [`reduce()`]: common reductions (count/sum/min/max)
+//! - [`reduce()`]: common reductions (count/sum/min/max/mean/variance/std/sum-squares/L2/count-distinct)
+//! - [`feature_wise_mean_std()`], [`arg_max_row()`], [`arg_min_row()`], [`top_k_by_frequency()`]:
+//!   multi-column stats, arg extrema, and label frequency top‑k
 //!
 //! ## Example: filter → map → reduce
 //!
@@ -49,9 +51,13 @@
 
 pub mod filter;
 pub mod map;
+pub mod multi;
 pub mod reduce;
 
 pub use filter::filter;
 pub use map::map;
-pub use reduce::{reduce, ReduceOp};
+pub use multi::{
+    arg_max_row, arg_min_row, feature_wise_mean_std, top_k_by_frequency, FeatureMeanStd,
+};
+pub use reduce::{reduce, ReduceOp, VarianceKind};
 

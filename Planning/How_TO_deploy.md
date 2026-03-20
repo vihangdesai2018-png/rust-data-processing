@@ -1,102 +1,101 @@
-I can't create downloadable files directly, but I can provide a formatted text that you can copy into a Word document. Here's how you can organize the content:
+# Deploy: crates.io + PyPI (Rust + Python wrapper)
+
+This project is primarily a Rust library (publish to **crates.io**) and (Phase 1a) will add a Python wrapper (publish to **PyPI**) using **PyO3 + maturin**.
 
 ---
 
-# Deploying Your GitHub Library to Cargo and Pip
+## Deploy to crates.io (Rust)
 
-## Deploying to Cargo (Rust)
+Step-by-step checklist: **`Planning/RELEASE_CHECKLIST.md`**.
 
-### 1. Prepare Your Project
-- Create a `Cargo.toml`: Ensure that your project has a `Cargo.toml` file that includes metadata such as the name, version, author, and description of your library.
+### Prerequisites checklist
+- `Cargo.toml` contains correct **name**, **version**, **description**, **license** (`MIT OR Apache-2.0`), **repository**, **readme**, **keywords**, **categories**, **rust-version**
+- README is accurate and includes feature flags + basic examples; **License** section points at `LICENSE-MIT` / `LICENSE-APACHE`
+- Licensing files are present (`LICENSE-MIT`, `LICENSE-APACHE`)
+- `CHANGELOG.md` updated for the version you intend to publish
+- You can build and test locally (including doctests if used); `cargo publish --dry-run` succeeds
 
-### 2. Set Up Your GitHub Repository
-- Host the Code: Push your Rust library to a GitHub repository. Use a descriptive README file.
+### Publish steps
+1. Create/login to crates.io, then:
 
-### 3. Publish to crates.io
-- Create an Account: Sign up for a [crates.io](https://crates.io/) account.
-- Login via Cargo: In your terminal, run:
-  ```bash
-  cargo login YOUR_API_TOKEN
-  ```
-- Publish Your Library: Use the following command:
-  ```bash
-  cargo publish
-  ```
+```bash
+cargo login <CRATES_IO_TOKEN>
+```
 
-### 4. Update Your Library
-- Change the version in `Cargo.toml` and run `cargo publish` again.
+2. Dry-run publish (recommended):
 
----
+```bash
+cargo publish --dry-run
+```
 
-## Deploying to Pip (Python)
+3. Publish:
 
-### 1. Prepare Your Project
-- Create a `setup.py`: Include the package name, version, author, and other metadata.
+```bash
+cargo publish
+```
 
-  Example `setup.py`:
-  ```python
-  from setuptools import setup, find_packages
-
-  setup(
-      name='your_library_name',
-      version='0.1.0',
-      author='Your Name',
-      description='A brief description of your library.',
-      packages=find_packages(),
-  )
-  ```
-
-### 2. Set Up Your GitHub Repository
-- Host Your Code: Push your library code to a GitHub repository.
-
-### 3. Publish to PyPI
-- Create an Account: Sign up at [PyPI](https://pypi.org/).
-- Use Twine: First, install Twine:
-  ```bash
-  pip install twine
-  ```
-- Build the Package:
-  ```bash
-  python setup.py sdist bdist_wheel
-  ```
-- Upload to PyPI:
-  ```bash
-  twine upload dist/*
-  ```
-
-### 4. Update Your Library
-- Change the version in `setup.py`, build again, and upload using Twine.
+### Release hygiene (recommended)
+- Tag the release in git (e.g. `v0.1.0`)
+- Write release notes (GitHub Releases or `CHANGELOG.md`)
+- Follow SemVer for breaking API changes
 
 ---
 
-## Summary Comparison
+## Deploy to PyPI (Python wrapper)
 
-| Step                          | Cargo (Rust)                           | Pip (Python)                     |
-|-------------------------------|----------------------------------------|-----------------------------------|
-| Library Metadata File         | `Cargo.toml`                          | `setup.py`                       |
-| Hosting                        | GitHub                                 | GitHub                           |
-| Account Creation               | crates.io                              | PyPI                             |
-| Login Process                  | `cargo login`                         | Not required (Twine handles this) |
-| Publishing Command             | `cargo publish`                       | `twine upload dist/*`            |
-| Updating Process               | Change version in `Cargo.toml`       | Update version in `setup.py`     |
+### Recommended approach: PyO3 + maturin (no `setup.py`)
+Modern Rust-backed Python packages typically use a `pyproject.toml` + maturin build flow.
+
+High-level plan:
+- Create a `python/` folder containing the Python package + maturin config
+- Use PyO3 to expose a Python module implemented in Rust
+- Use maturin to build wheels for Windows/macOS/Linux and publish to PyPI
+
+### Minimal repository layout (Phase 1a target)
+- `python/pyproject.toml` (maturin config + Python metadata)
+- `python/rust_data_processing/__init__.py` (thin Python API surface)
+- `python/src/lib.rs` (PyO3 module entrypoint; calls into the Rust crate)
+
+### Local development workflow
+From `python/`:
+
+```bash
+maturin develop
+```
+
+This builds the Rust extension and installs it into your active Python environment.
+
+### Build wheels locally
+From `python/`:
+
+```bash
+maturin build --release
+```
+
+Wheels land in `python/target/wheels/` by default.
+
+### CI/CD: build + publish wheels with GitHub Actions
+Use the official action: `PyO3/maturin-action` to build wheels for:
+- Windows
+- macOS
+- Linux (manylinux)
+
+Maturin can generate a starter workflow:
+
+```bash
+maturin generate-ci github
+```
+
+Recommended publishing flow:
+- On git tag (e.g. `v0.1.0`), build wheels in CI
+- Upload wheels + sdist to PyPI using an API token stored in GitHub Secrets
+
+### Versioning recommendations
+- Easiest for Phase 1a: keep the **Python package version aligned** with the Rust crate version.
+- Document which Rust features are enabled/disabled in Python wheels (e.g. optional DB ingestion).
 
 ---
 
-## Reporting Bugs
-
-### 1. GitHub Issues
-- Create an Issues Page: Enable the "Issues" feature in your GitHub repository.
-- Template: Create a bug report template to guide users.
-
-### 2. README File
-- Add Reporting Instructions: Include a section in your `README.md` on bug reporting, linking to the "Issues" page.
-
-### 3. Communication Channels
-- Other Platforms: Consider discussion boards or chat platforms for real-time communication.
-
-### 4. Bug Reporting Tools
-- Use Third-Party Services: Tools like Sentry or Bugsnag can help track errors and exceptions.
-
----
-
-To create the document, simply copy the above content, paste it into Microsoft Word or Google Docs, and save it as needed. If you need more help, just let me know!
+## Reporting bugs
+- Use GitHub Issues and link it from README
+- Add a bug report template (optional but helpful)

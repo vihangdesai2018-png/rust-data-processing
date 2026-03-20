@@ -5,15 +5,23 @@ and the Phase 1 tracker in `Planning/PHASE1_PLAN.md`.
 
 ## Quick navigation
 
+- **User-facing examples**: root `README.md` (cookbook + map/reduce aggregates); `API.md` (full aggregate / `group_by` snippets)
+- **Reduce / aggregate semantics**: `Planning/REDUCE_AGG_SEMANTICS.md`
 - **Public API surface**: `src/lib.rs` (module exports + default-on `sql`)
 - **Core data model**: `src/types.rs` (`Schema`, `Field`, `DataType`, `DataSet`, `Value`)
 - **Errors**: `src/error.rs` (`IngestionError`, `IngestionResult<T>`)
 - **Ingestion**: `src/ingestion/`
+- **DB ingestion (ConnectorX, feature-gated)**: `src/ingestion/db.rs`
 - **DataFrame pipelines (Polars-backed)**: `src/pipeline/mod.rs`
 - **In-memory transforms**: `src/processing/`
 - **Parallel execution engine**: `src/execution/`
 - **SQL module (feature: `sql`, enabled by default)**: `src/sql/mod.rs`
-- **Benchmarks**: `benches/` (`pipelines`, `ingestion`, `map_reduce`)
+- **Transform spec**: `src/transform.rs` (`TransformSpec`, `TransformStep`)
+- **Profiling**: `src/profiling/mod.rs`
+- **Validation**: `src/validation/mod.rs`
+- **Outliers**: `src/outliers/mod.rs`
+- **CDC boundary types**: `src/cdc/mod.rs`
+- **Benchmarks**: `benches/` (`pipelines`, `ingestion`, `map_reduce`, `profiling`, `validation`, `outliers`)
 - **Scripts (Windows/PowerShell convenience)**: `scripts/`
 
 ## Module map (what does what)
@@ -60,7 +68,8 @@ Guidelines:
 
 - `filter.rs`: in-memory row filtering
 - `map.rs`: in-memory row mapping
-- `reduce.rs`: reductions (`ReduceOp::{Count, Sum, Min, Max}`)
+- `reduce.rs`: reductions (`ReduceOp` including mean/variance/std/sum-squares/L2/count-distinct)
+- `multi.rs`: `feature_wise_mean_std`, `arg_max_row` / `arg_min_row`, `top_k_by_frequency`
 
 Guidelines:
 
@@ -90,6 +99,37 @@ Guidelines:
 - **Purpose**: Polars-backed SQL wrapper (compiles SQL → Polars lazy plan).
 - **Guideline**: Keep the rest of the crate Polars-first and DataFrame-centric; don’t let SQL drive public type leakage.
 
+### `transform` (`src/transform.rs`)
+
+- **Purpose**: Serde-friendly, end-user “mapping spec” (`TransformSpec`) for common ETL operations (rename/select/drop/cast/fill/derive),
+  compiled to `pipeline::DataFrame` wrappers.
+- **Guideline**: Keep public inputs/outputs in crate types (`Schema`, `DataSet`, `DataType`, `Value`) so Python and other bindings can wrap it.
+
+### `profiling` (`src/profiling/mod.rs`)
+
+- **Purpose**: Polars-backed column profiling (row count, nulls, distinct (non-null), numeric min/max/mean + quantiles) with deterministic sampling.
+- **Guideline**: Reports should be stable, engine-agnostic structs with stable JSON/Markdown renderers.
+
+### `validation` (`src/validation/mod.rs`)
+
+- **Purpose**: Validation DSL (`ValidationSpec`, `Check`) compiled to Polars expressions, producing stable reports with JSON/Markdown renderers.
+- **Guideline**: Prefer “collect once” plans; keep example collection bounded (`max_examples` style).
+
+### `outliers` (`src/outliers/mod.rs`)
+
+- **Purpose**: Outlier detection primitives (IQR / z-score / MAD) with explainable outputs and stable renderers.
+- **Guideline**: Keep results explainable (stats + thresholds + examples) and deterministic under `SamplingMode`.
+
+### `cdc` (`src/cdc/mod.rs`)
+
+- **Purpose**: Dependency-free boundary types for CDC events and a batch-first source trait (Phase 1 spike).
+- **Guideline**: Do not add a heavy default CDC dependency; keep this as an interface boundary.
+
+### `ingestion::db` (`src/ingestion/db.rs`) (feature: `db_connectorx`)
+
+- **Purpose**: Direct DB ingestion via ConnectorX (DB → Arrow → `DataSet`).
+- **Guideline**: Keep API read-only and minimal; document platform prerequisites (e.g., OpenSSL toolchain constraints on some platforms).
+
 ## Common workflows
 
 ### Build + test
@@ -98,12 +138,33 @@ Guidelines:
 cargo test
 ```
 
+### Run feature-gated test suites
+
+```powershell
+# Deep tests (large fixtures)
+./scripts/run_deep_tests.ps1
+
+# Excel ingestion (reader)
+cargo test --features excel
+
+# Excel tests that generate an .xlsx at runtime
+cargo test --features excel_test_writer
+
+# DB ingestion (ConnectorX)
+cargo test --features db_connectorx
+```
+
 ### Run benchmarks
 
 ```powershell
 cargo bench --bench pipelines
 cargo bench --bench ingestion
 cargo bench --bench map_reduce
+# map_reduce bench includes: filter/map/sum, scalar mean/variance (mem vs Polars), feature_wise_mean_std,
+# arg_max / top_k_by_frequency, and Polars group_by ML-style aggs
+cargo bench --bench profiling
+cargo bench --bench validation
+cargo bench --bench outliers
 ```
 
 Convenience wrapper (Windows):
@@ -127,6 +188,12 @@ Convenience wrapper (Windows):
 cargo test --features excel
 ```
 
+- **Enable DB ingestion (ConnectorX)**:
+
+```powershell
+cargo test --features db_connectorx
+```
+
 - **Disable default features (including SQL)**:
 
 ```powershell
@@ -138,6 +205,8 @@ cargo test --no-default-features
 ```powershell
 ./scripts/run_deep_tests.ps1
 ```
+
+  These run `tests/deep_tests.rs` and include **in-memory vs Polars** parity for `reduce`, **`feature_wise_mean_std`**, plus **`group_by`** / **arg max/min** / **top‑k** on Seattle CSV, `job_runs_sample.json`, and the Apache Parquet fixture (where applicable).
 
 ## Making changes safely (project conventions)
 

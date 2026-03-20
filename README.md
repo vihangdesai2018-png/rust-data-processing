@@ -32,8 +32,8 @@ Canonical checklist lives in `Planning/PHASE1_PLAN.md`; this section is the READ
 - [x] Feature-gated direct DB ingestion via ConnectorX (DB → Arrow → `DataSet`) + compatibility research notes
 - [x] CDC feasibility spike + interface boundary (Phase 2 candidate)
 - [x] Profiling APIs: metrics set + sampling/large-data modes
-- [ ] Validation APIs: DSL + built-in checks + severity handling + reporting
-- [ ] Outlier detection: primitives + explainable outputs
+- [x] Validation APIs: DSL + built-in checks + severity handling + reporting
+- [x] Outlier detection: primitives + explainable outputs
 
 ## Platform support
 
@@ -49,7 +49,7 @@ Canonical checklist lives in `Planning/PHASE1_PLAN.md`; this section is the READ
 - **Benchmarks**:
   - `cargo bench --bench pipelines` is cross-platform.
   - `benchmarks.ps1` is a Windows/PowerShell convenience wrapper; on Linux/macOS you can run it via `pwsh` or just run `cargo bench` directly.
-  - `scripts/run_benchmarks.ps1` runs all Criterion benchmarks (pipelines + ingestion + map/reduce).
+  - `scripts/run_benchmarks.ps1` runs all Criterion benchmarks (pipelines + ingestion + map/reduce + profiling + validation + outliers).
 
 ## Quick start (library usage)
 
@@ -262,6 +262,64 @@ assert_eq!(rep.row_count, 2);
 assert_eq!(rep.columns[0].null_count, 1);
 ```
 
+## Validation (Phase 1)
+
+Define checks with `validation::ValidationSpec` and render the report as JSON/Markdown.
+
+```rust
+use rust_data_processing::validation::{validate_dataset, Check, Severity, ValidationSpec};
+use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
+
+let ds = DataSet::new(
+    Schema::new(vec![Field::new("email", DataType::Utf8)]),
+    vec![
+        vec![Value::Utf8("ada@example.com".to_string())],
+        vec![Value::Null],
+        vec![Value::Utf8("not-an-email".to_string())],
+    ],
+);
+
+let spec = ValidationSpec::new(vec![
+    Check::NotNull { column: "email".to_string(), severity: Severity::Error },
+    Check::RegexMatch {
+        column: "email".to_string(),
+        pattern: r"^[^@]+@[^@]+\.[^@]+$".to_string(),
+        severity: Severity::Warn,
+        strict: true,
+    },
+]);
+
+let rep = validate_dataset(&ds, &spec)?;
+assert!(rep.summary.total_checks >= 2);
+```
+
+## Outlier detection (Phase 1)
+
+```rust
+use rust_data_processing::outliers::{detect_outliers_dataset, OutlierMethod, OutlierOptions};
+use rust_data_processing::profiling::SamplingMode;
+use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
+
+let ds = DataSet::new(
+    Schema::new(vec![Field::new("x", DataType::Float64)]),
+    vec![
+        vec![Value::Float64(1.0)],
+        vec![Value::Float64(1.0)],
+        vec![Value::Float64(1.0)],
+        vec![Value::Float64(1000.0)],
+    ],
+);
+
+let rep = detect_outliers_dataset(
+    &ds,
+    "x",
+    OutlierMethod::Iqr { k: 1.5 },
+    &OutlierOptions { sampling: SamplingMode::Full, max_examples: 3 },
+)?;
+
+assert!(rep.outlier_count >= 1);
+```
+
 ## CDC interface boundary (Phase 1 spike)
 
 The `cdc` module defines crate-owned boundary types for CDC events without picking a concrete CDC implementation dependency.
@@ -343,7 +401,49 @@ let out = DataFrame::from_dataset(&ds)?
     .collect()?;
 ```
 
-Note: Polars aggregation semantics apply (e.g. `SUM` ignores nulls and may return `0` for all-null groups).
+Per-key **mean**, **sample std dev**, and **count-distinct** (e.g. categorical cardinality per group):
+
+```rust
+use rust_data_processing::pipeline::{Agg, DataFrame};
+use rust_data_processing::processing::VarianceKind;
+use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
+
+let ds = DataSet::new(
+    Schema::new(vec![
+        Field::new("grp", DataType::Utf8),
+        Field::new("score", DataType::Float64),
+        Field::new("label", DataType::Utf8),
+    ]),
+    vec![
+        vec![Value::Utf8("A".to_string()), Value::Float64(10.0), Value::Utf8("x".to_string())],
+        vec![Value::Utf8("A".to_string()), Value::Float64(20.0), Value::Utf8("y".to_string())],
+        vec![Value::Utf8("B".to_string()), Value::Null, Value::Utf8("z".to_string())],
+    ],
+);
+
+let _out = DataFrame::from_dataset(&ds)?
+    .group_by(
+        &["grp"],
+        &[
+            Agg::Mean {
+                column: "score".to_string(),
+                alias: "mu_score".to_string(),
+            },
+            Agg::StdDev {
+                column: "score".to_string(),
+                alias: "sd_score".to_string(),
+                kind: VarianceKind::Sample,
+            },
+            Agg::CountDistinctNonNull {
+                column: "label".to_string(),
+                alias: "n_labels".to_string(),
+            },
+        ],
+    )?
+    .collect()?;
+```
+
+**Semantics** (nulls, all-null groups, `SUM` vs `MEAN`, casting): see `Planning/REDUCE_AGG_SEMANTICS.md`. More API examples: `API.md` § *Processing pipelines*.
 
 Join two DataFrames:
 
@@ -408,7 +508,12 @@ transformations using `rust_data_processing::processing`:
 
 - `filter(&DataSet, predicate) -> DataSet`
 - `map(&DataSet, mapper) -> DataSet`
-- `reduce(&DataSet, column, ReduceOp) -> Option<Value>`
+- `reduce(&DataSet, column, ReduceOp) -> Option<Value>` — includes **mean**, **variance**, **std dev** (`VarianceKind::{Population, Sample}`), **sum of squares**, **L2 norm**, **count distinct** (non-null), plus **count** / **sum** / **min** / **max**
+- `feature_wise_mean_std(&DataSet, &[&str], VarianceKind)` — one pass over rows for mean + std on several numeric columns (`FeatureMeanStd`)
+- `arg_max_row` / `arg_min_row` — first row index where a column is max/min (ties: smallest index)
+- `top_k_by_frequency` — top‑\(k\) `(value, count)` pairs for label-style columns
+
+Polars-backed equivalents for whole-frame scalars: `pipeline::DataFrame::reduce`, `feature_wise_mean_std`. **Semantics**: `Planning/REDUCE_AGG_SEMANTICS.md`.
 
 Example:
 
@@ -444,6 +549,99 @@ let mapped = map(&filtered, |row| {
 
 let sum = reduce(&mapped, "score", ReduceOp::Sum).unwrap();
 assert_eq!(sum, Value::Float64(11.0));
+```
+
+### Mean, variance, std dev, norms, and distinct counts
+
+```rust
+use rust_data_processing::processing::{reduce, ReduceOp, VarianceKind};
+use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
+
+let ds = DataSet::new(
+    Schema::new(vec![
+        Field::new("x", DataType::Float64),
+        Field::new("cat", DataType::Utf8),
+    ]),
+    vec![
+        vec![Value::Float64(2.0), Value::Utf8("a".to_string())],
+        vec![Value::Float64(4.0), Value::Utf8("b".to_string())],
+    ],
+);
+
+let mean = reduce(&ds, "x", ReduceOp::Mean).unwrap();
+let std_s = reduce(&ds, "x", ReduceOp::StdDev(VarianceKind::Sample)).unwrap();
+let l2 = reduce(&ds, "x", ReduceOp::L2Norm).unwrap();
+let d = reduce(&ds, "cat", ReduceOp::CountDistinctNonNull).unwrap();
+// mean == 3.0, std_s is sqrt(sample var of [2,4]), l2 == hypot(2,4), d == 2 distinct labels
+assert!(matches!(mean, Value::Float64(_)));
+assert!(matches!(d, Value::Int64(2)));
+```
+
+### Polars-backed `DataFrame::reduce` (same `ReduceOp`)
+
+```rust
+use rust_data_processing::pipeline::DataFrame;
+use rust_data_processing::processing::{reduce, ReduceOp};
+use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
+
+let ds = DataSet::new(
+    Schema::new(vec![Field::new("x", DataType::Float64)]),
+    vec![vec![Value::Float64(1.0)], vec![Value::Float64(3.0)]],
+);
+
+let mem = reduce(&ds, "x", ReduceOp::Mean).unwrap();
+let pol = DataFrame::from_dataset(&ds).unwrap().reduce("x", ReduceOp::Mean).unwrap().unwrap();
+assert_eq!(mem, pol);
+```
+
+### Feature-wise mean and std in one pass (memory vs Polars)
+
+```rust
+use rust_data_processing::pipeline::DataFrame;
+use rust_data_processing::processing::{feature_wise_mean_std, VarianceKind};
+use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
+
+let ds = DataSet::new(
+    Schema::new(vec![
+        Field::new("a", DataType::Int64),
+        Field::new("b", DataType::Float64),
+    ]),
+    vec![
+        vec![Value::Int64(1), Value::Float64(10.0)],
+        vec![Value::Int64(3), Value::Float64(20.0)],
+    ],
+);
+
+let cols = ["a", "b"];
+let mem = feature_wise_mean_std(&ds, &cols, VarianceKind::Sample).unwrap();
+let pol = DataFrame::from_dataset(&ds)
+    .unwrap()
+    .feature_wise_mean_std(&cols, VarianceKind::Sample)
+    .unwrap();
+assert_eq!(mem[0].0, pol[0].0);
+```
+
+### Arg max / arg min row and top‑k label frequencies
+
+```rust
+use rust_data_processing::processing::{arg_max_row, top_k_by_frequency};
+use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
+
+let ds = DataSet::new(
+    Schema::new(vec![
+        Field::new("id", DataType::Int64),
+        Field::new("region", DataType::Utf8),
+    ]),
+    vec![
+        vec![Value::Int64(1), Value::Utf8("west".to_string())],
+        vec![Value::Int64(2), Value::Utf8("east".to_string())],
+        vec![Value::Int64(3), Value::Utf8("west".to_string())],
+    ],
+);
+
+let (_row, _val) = arg_max_row(&ds, "id").unwrap().unwrap();
+let top = top_k_by_frequency(&ds, "region", 2).unwrap();
+assert!(!top.is_empty());
 ```
 
 ### Execution engine (parallel pipelines) (Story 1.3)
@@ -484,10 +682,10 @@ let metrics = engine.metrics().snapshot();
 println!("rows_processed={}, elapsed={:?}", metrics.rows_processed, metrics.elapsed);
 ```
 
-### More examples: reduce ops and missing columns
+### More examples: counts, missing columns, all-null numeric
 
 ```rust
-use rust_data_processing::processing::{reduce, ReduceOp};
+use rust_data_processing::processing::{reduce, ReduceOp, VarianceKind};
 use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
 
 let schema = Schema::new(vec![Field::new("score", DataType::Float64)]);
@@ -496,6 +694,16 @@ let ds = DataSet::new(schema, vec![vec![Value::Float64(1.0)], vec![Value::Null]]
 assert_eq!(reduce(&ds, "score", ReduceOp::Count), Some(Value::Int64(2)));
 assert_eq!(reduce(&ds, "score", ReduceOp::Sum), Some(Value::Float64(1.0)));
 assert_eq!(reduce(&ds, "missing", ReduceOp::Sum), None);
+
+let all_null = DataSet::new(
+    Schema::new(vec![Field::new("x", DataType::Float64)]),
+    vec![vec![Value::Null], vec![Value::Null]],
+);
+assert_eq!(reduce(&all_null, "x", ReduceOp::Mean), Some(Value::Null));
+assert_eq!(
+    reduce(&all_null, "x", ReduceOp::Variance(VarianceKind::Sample)),
+    Some(Value::Null)
+);
 ```
 
 ### Benchmarks (Story 1.2.5)
@@ -512,9 +720,13 @@ Additional benchmark targets:
   - Generates 20k-row fixtures (CSV / JSON array / NDJSON / nested JSON / Parquet; Excel when enabled)
   - Measures schema-known vs schema-inferred and a “warm vs rotating files” proxy for cache effects
 - `cargo bench --bench map_reduce`
-  - Benchmarks filter/map/reduce on in-memory `DataSet` vs `ExecutionEngine` parallel path
+  - In-memory vs parallel **filter/map/sum**; **scalar** mean/variance (memory vs Polars); **feature_wise_mean_std** (one pass vs Polars vs naive multi-`reduce`); **arg_max** / **top_k_by_frequency**; Polars **group_by** with mean/std/count-distinct-style `Agg`s
 - `cargo bench --bench profiling`
   - Benchmarks `profiling::profile_dataset` (full vs head sampling)
+- `cargo bench --bench validation`
+  - Benchmarks `validation::validate_dataset` (built-in checks and reporting overhead)
+- `cargo bench --bench outliers`
+  - Benchmarks `outliers::detect_outliers_dataset` (full vs sampled)
 
 Convenience runner (Windows / PowerShell):
 
@@ -649,3 +861,13 @@ if ($parts -notcontains $cargoBin) {
 ```
 
 After changing the *User* PATH, **restart your terminal** (or log out/in) so new shells inherit it.
+
+## License
+
+Dual-licensed under your choice of **Apache License 2.0** or **MIT**. See [`LICENSE-APACHE`](LICENSE-APACHE) and [`LICENSE-MIT`](LICENSE-MIT).
+
+SPDX-License-Identifier: `MIT OR Apache-2.0`
+
+## Publishing to crates.io
+
+Maintainers: see [`Planning/RELEASE_CHECKLIST.md`](Planning/RELEASE_CHECKLIST.md) and [`How_TO_deploy.md`](Planning/How_TO_deploy.md). After the first successful `cargo publish`, API docs appear on [docs.rs](https://docs.rs/rust-data-processing) for the published version.

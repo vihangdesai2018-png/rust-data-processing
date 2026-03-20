@@ -1,0 +1,17 @@
+[package]
+name = "rust_data_processing_py"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "PyO3 extension for rust-data-processing (Python package build via maturin)."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/vihangdesai2018-png/rust-data-processing"
+publish = false
+
+[lib]
+name = "_rust_data_processing"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.24", features = ["extension-module"] }
+rust-data-processing = { path = "..", default-features = true, features = ["excel"] }
