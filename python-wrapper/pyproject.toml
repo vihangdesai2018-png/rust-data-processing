@@ -1,0 +1,31 @@
+[build-system]
+requires = ["maturin>=1.7,<2"]
+build-backend = "maturin"
+
+[project]
+name = "rust-data-processing"
+version = "0.1.0"
+description = "Python bindings for rust-data-processing: schema-first CSV/JSON/Parquet/Excel ingestion into an in-memory DataSet."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT OR Apache-2.0" }
+authors = [{ name = "rust-data-processing contributors" }]
+classifiers = [
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Rust",
+    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
+]
+
+[project.urls]
+Repository = "https://github.com/vihangdesai2018-png/rust-data-processing"
+
+[dependency-groups]
+dev = ["maturin>=1.7,<2", "pytest>=8"]
+
+[tool.maturin]
+module-name = "rust_data_processing._rust_data_processing"
+python-source = "."

@@ -23,6 +23,7 @@ and the Phase 1 tracker in `Planning/PHASE1_PLAN.md`.
 - **CDC boundary types**: `src/cdc/mod.rs`
 - **Benchmarks**: `benches/` (`pipelines`, `ingestion`, `map_reduce`, `profiling`, `validation`, `outliers`)
 - **Scripts (Windows/PowerShell convenience)**: `scripts/`
+- **Python bindings (PyO3 + maturin + uv)**: `python-wrapper/` (see `python-wrapper/README_DEV.md`)
 
 ## Module map (what does what)
 

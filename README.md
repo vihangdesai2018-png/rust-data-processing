@@ -51,6 +51,10 @@ Canonical checklist lives in `Planning/PHASE1_PLAN.md`; this section is the READ
   - `benchmarks.ps1` is a Windows/PowerShell convenience wrapper; on Linux/macOS you can run it via `pwsh` or just run `cargo bench` directly.
   - `scripts/run_benchmarks.ps1` runs all Criterion benchmarks (pipelines + ingestion + map/reduce + profiling + validation + outliers).
 
+## Python bindings
+
+Bindings are developed under **`python-wrapper/`** using **PyO3**, **maturin**, and **uv** (see `python-wrapper/README.md`, `python-wrapper/API.md`, and `python-wrapper/README_DEV.md`). The native module calls into this crate; Polars and other engine details stay on the Rust side.
+
 ## Quick start (library usage)
 
 Add to your `Cargo.toml` (example):

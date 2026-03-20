@@ -95,10 +95,10 @@ Goals:
 - Ship prebuilt wheels for Windows/macOS/Linux
 
 #### 2.2.1 Python package layout
-- [ ] Create `python-wrapper/` folder at repo root (new package workspace)
-- [ ] Add `python-wrapper/pyproject.toml` configured for maturin
-- [ ] Add `python-wrapper/rust_data_processing/__init__.py` (thin Python API surface)
-- [ ] Add `python-wrapper/src/lib.rs` (PyO3 module entrypoint) that calls into the Rust crate
+- [x] Create `python-wrapper/` folder at repo root (new package workspace)
+- [x] Add `python-wrapper/pyproject.toml` configured for maturin
+- [x] Add `python-wrapper/rust_data_processing/__init__.py` (thin Python API surface)
+- [x] Add `python-wrapper/src/lib.rs` (PyO3 module entrypoint) that calls into the Rust crate
 
 #### 2.2.2 What the Python API should expose (Phase 1a)
 Minimum useful surface:

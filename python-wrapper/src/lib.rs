@@ -5,7 +5,8 @@
 
 use pyo3::exceptions::{PyIOError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList};
+use pyo3::types::{PyBool, PyDict, PyList};
+use pyo3::IntoPyObject;
 
 use rust_data_processing::ingestion::{
     ingest_from_path, ingest_from_path_infer, infer_schema_from_path, ExcelSheetSelection,
@@ -115,10 +116,23 @@ fn ingestion_options_from_py(obj: Option<&Bound<'_, PyAny>>) -> PyResult<Ingesti
 fn value_to_py(py: Python<'_>, v: &Value) -> PyObject {
     match v {
         Value::Null => py.None().into(),
-        Value::Int64(i) => (*i).into_py(py),
-        Value::Float64(f) => (*f).into_py(py),
-        Value::Bool(b) => (*b).into_py(py),
-        Value::Utf8(s) => s.clone().into_py(py),
+        Value::Int64(i) => i
+            .into_pyobject(py)
+            .expect("int always converts")
+            .into_any()
+            .unbind(),
+        Value::Float64(f) => f
+            .into_pyobject(py)
+            .expect("float always converts")
+            .into_any()
+            .unbind(),
+        Value::Bool(b) => PyBool::new(py, *b).to_owned().into(),
+        Value::Utf8(s) => s
+            .as_str()
+            .into_pyobject(py)
+            .expect("str always converts")
+            .into_any()
+            .unbind(),
     }
 }
 
@@ -192,9 +206,9 @@ impl PyDataSet {
     }
 
     fn schema(&self, py: Python<'_>) -> PyResult<PyObject> {
-        let list = PyList::empty_bound(py);
+        let list = PyList::empty(py);
         for f in &self.inner.schema.fields {
-            let d = PyDict::new_bound(py);
+            let d = PyDict::new(py);
             d.set_item("name", &f.name)?;
             let dt = match f.data_type {
                 DataType::Int64 => "int64",
@@ -210,9 +224,9 @@ impl PyDataSet {
 
     /// Row-major values: `list[list[Optional[scalar]]]` aligned to schema order.
     fn to_rows(&self, py: Python<'_>) -> PyResult<PyObject> {
-        let outer = PyList::empty_bound(py);
+        let outer = PyList::empty(py);
         for row in &self.inner.rows {
-            let inner = PyList::empty_bound(py);
+            let inner = PyList::empty(py);
             for v in row {
                 inner.append(value_to_py(py, v))?;
             }
@@ -260,9 +274,9 @@ fn infer_schema_from_path_py(path: &str, options: Option<&Bound<'_, PyAny>>) -> 
     let opts = ingestion_options_from_py(options)?;
     let s = infer_schema_from_path(path, &opts).map_err(ingestion_to_py_err)?;
     Python::with_gil(|py| {
-        let list = PyList::empty_bound(py);
+        let list = PyList::empty(py);
         for f in s.fields {
-            let d = PyDict::new_bound(py);
+            let d = PyDict::new(py);
             d.set_item("name", f.name)?;
             let dt = match f.data_type {
                 DataType::Int64 => "int64",
