@@ -26,13 +26,21 @@ import rust_data_processing as rdp
 
 ds = rdp.ingest_from_path_infer("../tests/fixtures/people.csv")
 print(ds.row_count())
+
+# Same crate powers reduce, SQL, and lazy pipelines (see API.md):
+print(rdp.processing_reduce(ds, "score", "mean"))
+print(rdp.sql_query_dataset(ds, "SELECT id FROM df WHERE score > 90").row_count())
+subset = rdp.DataFrame.from_dataset(ds).select(["id", "name"]).collect()
 ```
+
+Full surface area: [API.md](./API.md) (ingestion, `processing_*`, `DataFrame`, `SqlContext`, SQL, transform JSON, profiling, validation, outliers, `ExecutionEngine`).
 
 ## Documentation
 
 | Doc | Purpose |
 |-----|---------|
 | [API.md](./API.md) | Python API overview |
+| [PARITY.md](./PARITY.md) | Rust ↔ Python parity matrix |
 | [README_DEV.md](./README_DEV.md) | Build, test, and packaging notes |
 | [docs/README.md](./docs/README.md) | Doc index |
 

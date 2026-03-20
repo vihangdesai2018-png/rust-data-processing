@@ -102,55 +102,56 @@ Goals:
 
 #### 2.2.2 What the Python API should expose (Phase 1a)
 Minimum useful surface:
-- [ ] `ingest_from_path(path, schema, options=None) -> DataSet`
-- [ ] `ingest_from_path_infer(path, options=None) -> (DataSet, Schema)` (or return report with inferred schema)
-- [ ] `infer_schema_from_path(path, options=None) -> Schema`
-- [ ] `sql.query(dataset_or_df, sql) -> DataSet`
-- [ ] `transform.apply(dataset, spec) -> DataSet`
-- [ ] `profiling.profile(dataset, options) -> dict` + `to_markdown(report)` / `to_json(report)`
-- [ ] `validation.validate(dataset, spec) -> report`
-- [ ] `outliers.detect(dataset, column, method, options) -> report`
-- [ ] **Map/Reduce parity**:
-  - [ ] `processing.filter(dataset, predicate) -> DataSet`
-  - [ ] `processing.map(dataset, mapper) -> DataSet`
-  - [ ] `processing.reduce(dataset, column, op) -> Optional[Value]`
-- [ ] **Pipeline (Polars-backed) parity** (Python class wrapping `pipeline::DataFrame`):
-  - [ ] `pipeline.DataFrame.from_dataset(ds) -> DataFrame`
-  - [ ] `DataFrame.collect() -> DataSet`
-  - [ ] Transform wrappers parity (`select/rename/drop/cast/fill_null/derive/filter/group_by/join`)
-- [ ] **Parallel execution parity** (thin wrapper over `execution::ExecutionEngine`):
-  - [ ] `execution.filter_parallel(...)`, `execution.map_parallel(...)`, `execution.reduce(...)`
-  - [ ] `execution.metrics_snapshot() -> dict`
-- [ ] **Observability parity** (optional but preferred for “pit of success”):
-  - [ ] Python callbacks for observer hooks (at least: on_error/on_alert/on_metric)
-  - [ ] Expose `alert_at_or_above`-style configuration
-- [ ] **DB ingestion parity** (feature-gated in Rust; surfaced in Python with clear install docs):
-  - [ ] `ingest_from_db(conn, query) -> DataSet`
-  - [ ] `ingest_from_db_infer(conn, query) -> DataSet` (or `(DataSet, Schema)`)
-- [ ] **CDC boundary parity** (types only; no connector shipped in Phase 1a):
-  - [ ] `cdc.CdcEvent`, `cdc.CdcOp`, `cdc.TableRef`, `cdc.RowImage`, `cdc.SourceMeta`
+- [x] `ingest_from_path(path, schema, options=None) -> DataSet`
+- [x] `ingest_from_path_infer(path, options=None) -> (DataSet, Schema)` (via `ingest_with_inferred_schema`; single-step infer+ingest remains `ingest_from_path_infer`)
+- [x] `infer_schema_from_path(path, options=None) -> Schema`
+- [x] `sql.query(dataset_or_df, sql) -> DataSet` (`sql_query_dataset`; multi-table: `SqlContext`)
+- [x] `transform.apply(dataset, spec) -> DataSet` (`transform_apply` / `transform_apply_json`)
+- [x] `profiling.profile(dataset, options) -> dict` + `profile_dataset_markdown` / `profile_dataset_json`
+- [x] `validation.validate(dataset, spec) -> report` (+ markdown/json helpers)
+- [x] `outliers.detect(dataset, column, method, options) -> report` (+ markdown/json helpers)
+- [x] **Map/Reduce parity**:
+  - [x] `processing.filter(dataset, predicate) -> DataSet` (`processing_filter`)
+  - [x] `processing.map(dataset, mapper) -> DataSet` (`processing_map`)
+  - [x] `processing.reduce(dataset, column, op) -> Optional[Value]` (`processing_reduce`)
+- [x] **Pipeline (Polars-backed) parity** (Python class wrapping `pipeline::DataFrame`):
+  - [x] `pipeline.DataFrame.from_dataset(ds) -> DataFrame`
+  - [x] `DataFrame.collect() -> DataSet`
+  - [x] Transform wrappers parity (`select/rename/drop/cast/fill_null/derive/filter/group_by/join`)
+- [x] **Parallel execution parity** (thin wrapper over `execution::ExecutionEngine`):
+  - [x] `execution.filter_parallel(...)`, `execution.map_parallel(...)` — Python row callbacks use `Py::clone_ref` + `Python::with_gil` per row inside Rayon chunks (throughput is still GIL-limited for pure Python predicates; chunk scheduling/throttling matches Rust)
+  - [x] `execution.reduce(...)` (`ExecutionEngine.reduce`)
+  - [x] `execution.metrics_snapshot() -> dict`
+- [x] **Observability parity** (optional but preferred for “pit of success”):
+  - [x] Python callbacks for ingestion observer hooks (`on_success` / `on_failure` / `on_alert` on `options["observer"]`); execution stream via `ExecutionEngine(..., on_execution_event=...)` (`on_metric` ≈ execution event dicts with `kind` + metrics)
+  - [x] Expose `alert_at_or_above` on path ingest `options` dict (`info` / `warning` / `error` / `critical`)
+- [x] **DB ingestion parity** (feature-gated in Rust; surfaced in Python with clear install docs):
+  - [x] `ingest_from_db(conn, query, schema) -> DataSet` — build extension with `cargo` / maturin `--features db`
+  - [x] `ingest_from_db_infer(conn, query) -> DataSet` — same feature gate; returns dataset with inferred schema (use `DataSet.schema()` if you need the schema list)
+- [x] **CDC boundary parity** (types only; no connector shipped in Phase 1a):
+  - [x] `cdc.CdcEvent`, `cdc.CdcOp`, `cdc.TableRef`, `cdc.RowImage`, `cdc.SourceMeta` — Python dataclasses under `rust_data_processing.cdc`
 
 Interop considerations:
-- [ ] Decide on Python-side “Schema” representation (likely dict/list of fields)
-- [ ] Decide on DataSet representation:
+- [x] Decide on Python-side “Schema” representation (likely dict/list of fields)
+- [x] Decide on DataSet representation:
   - Option A: expose a Python `DataSet` class (backed by Rust)
   - Option B: convert to/from `pyarrow.Table` (heavier deps; likely Phase 1b)
   - Option C: **optional** conversion to/from `pandas.DataFrame` **only when explicitly requested by the end user**
-- [ ] Decide on Python dataframe story:
-  - **Default**: return **Polars** objects (or crate-owned `DataSet`) from Python APIs
+- [x] Decide on Python dataframe story:
+  - **Default**: return **Polars** objects (or crate-owned `DataSet`) from Python APIs — **implemented**: crate-owned `DataSet` + lazy `DataFrame` wrapper (no Polars types in Python)
   - **Opt-in**: provide `to_pandas()` / `from_pandas()` conversion utilities behind an explicit extra/flag
 
 #### 2.2.5 Python “must not fall short” parity rules (Phase 1a)
-- [ ] **Rule**: If it exists in the Phase 1 Rust public API and is safe/portable, it must be callable from Python.
-- [ ] **Rule**: The Python wrapper must not depend on pandas by default; **Polars-first** with explicit conversion APIs.
-- [ ] **Story**: Build a “Rust→Python parity matrix” table (module → functions/types → status), reviewed at each release.
-- [ ] **Story**: Ensure Python docs mirror Rust docs (same examples, adapted to Python), including:
-  - ingestion + schema inference
+- [x] **Rule**: If it exists in the Phase 1 Rust public API and is safe/portable, it must be callable from Python. *(Remaining gaps: optional Arrow/pandas interop; DB requires `--features db` build; CDC types are Python mirrors without live events.)*
+- [x] **Rule**: The Python wrapper must not depend on pandas by default; **Polars-first** with explicit conversion APIs.
+- [x] **Story**: Build a “Rust→Python parity matrix” table (module → functions/types → status), reviewed at each release — see `python-wrapper/PARITY.md`.
+- [x] **Story**: Ensure Python docs mirror Rust docs (same examples, adapted to Python), including:
+  - ingestion + schema inference + **observer / alert threshold**
   - pipelines + SQL
   - TransformSpec
   - profiling/validation/outliers report rendering (JSON/Markdown)
-  - map/reduce + execution engine
-  - feature-gated DB ingestion (document prerequisites)
+  - map/reduce + **parallel** execution engine + **execution events**
+  - feature-gated DB ingestion (document prerequisites — `README_DEV.md`, `API.md`)
 
 #### 2.2.3 Packaging + wheels
 - [ ] Use maturin to build wheels locally:

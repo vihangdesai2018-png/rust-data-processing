@@ -15,6 +15,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Programming Language :: Rust",
     "License :: OSI Approved :: MIT License",
     "License :: OSI Approved :: Apache Software License",
@@ -24,8 +25,22 @@ classifiers = [
 Repository = "https://github.com/vihangdesai2018-png/rust-data-processing"
 
 [dependency-groups]
-dev = ["maturin>=1.7,<2", "pytest>=8"]
+dev = [
+    "maturin>=1.7,<2",
+    "pytest>=8",
+    "pytest-benchmark>=4",
+    "pyarrow>=15",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "deep: uses repo tests/fixtures/deep (slower)",
+    "benchmark: pytest-benchmark timing (adds iterations; use -m 'not benchmark' to skip)",
+]
+testpaths = ["tests"]
+pythonpath = ["."]
 
 [tool.maturin]
 module-name = "rust_data_processing._rust_data_processing"
 python-source = "."
+# Optional wheel builds with DB: set `features = ["db"]` here or pass `maturin build --features db`.
