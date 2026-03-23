@@ -68,7 +68,7 @@ Artifacts default to **`python-wrapper/target/wheels/`** (or `dist/` if you pass
 | Workflow | When | What |
 |----------|------|------|
 | **`.github/workflows/rust_ci.yml`** | PRs + pushes to **`main`** | **`cargo fmt`**, **`clippy`**, **`cargo test`** (incl. doctests) on **ubuntu + windows**; **ubuntu** **`cargo test --features ci_expanded`** (not **`db_connectorx`** — OpenSSL/Perl; test DB locally) |
-| **`.github/workflows/python_ci.yml`** | PRs + pushes to `main` (when wrapper / library / lockfile change) | `uv` + `maturin develop --release` + `pytest -m "not deep and not benchmark"` on **ubuntu / windows / macOS** × Python **3.11 / 3.12** |
+| **`.github/workflows/python_ci.yml`** | PRs + pushes to `main` (when wrapper / library / lockfile change) | `uv` + `maturin develop --release` + `pytest` on **ubuntu / windows / macOS** × **3.11 / 3.12**; **ubuntu + 3.12** also **`maturin build`** + **`uv pip install`** wheel + import smoke |
 | **`.github/workflows/rust_release.yml`** | Push tag **`v*`** | **Guard:** tag must point at a commit on **`origin/main`** → **`cargo publish --locked`** → **crates.io** |
 | **`.github/workflows/python_release.yml`** | Push tag **`v*`** | **Same guard** → **`PyO3/maturin-action`** wheels + **PyPI** |
 

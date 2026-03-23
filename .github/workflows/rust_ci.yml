@@ -7,6 +7,9 @@ on:
   push:
     branches: ["main"]
   pull_request:
+  # Optional: keep dependency advisories fresh even without PR activity.
+  schedule:
+    - cron: "0 3 * * *"
 
 permissions:
   contents: read
@@ -16,6 +19,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  dependency-review:
+    name: Security — dependency review (PR)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Dependency review
+        uses: actions/dependency-review-action@v4
+
+  audit:
+    name: Security — RustSec cargo audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Audit Rust dependencies (RustSec)
+        uses: actions-rust-lang/audit@v1
+
   fmt-clippy-test:
     name: ${{ matrix.os }} — fmt, clippy, tests
     runs-on: ${{ matrix.os }}

@@ -42,7 +42,7 @@ cargo publish
 
 ### One-time setup (GitHub secrets)
 
-Add **two** repository secrets under **Settings → Secrets and variables → Actions** (step-by-step: **`Planning/How_TO_deploy.md`** § *GitHub: add secrets for crates.io and PyPI*):
+Add **two** repository secrets under **Settings → Secrets and variables → Actions** (step-by-step: **`Planning/How_TO_deploy.md`** § *GitHub: add secrets for crates.io and PyPI*). Once **`CRATES_IO_TOKEN`** and **`PYPI_API_TOKEN`** are set, tagged releases can publish without further token setup.
 
 | Secret name | Used by | Created at |
 |-------------|---------|------------|

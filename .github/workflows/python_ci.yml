@@ -54,3 +54,14 @@ jobs:
           uv sync --group dev
           uv run maturin develop --release
           uv run pytest -m "not deep and not benchmark" -q
+
+      # PEP 517 / wheel path distinct from `maturin develop` (one matrix cell to save minutes).
+      - name: Build wheel + pip install smoke
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        working-directory: python-wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run maturin build --release -o dist
+          uv pip install --force-reinstall dist/*.whl
+          uv run python -c "import rust_data_processing as r; assert r.extension_version(); print('pip wheel smoke ok', r.extension_version())"

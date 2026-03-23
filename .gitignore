@@ -5,4 +5,3 @@ epcis_and_stories.txt
 test_run.log
 test_run_*.log
 benchmarks.log
-benches/pipelines.rs

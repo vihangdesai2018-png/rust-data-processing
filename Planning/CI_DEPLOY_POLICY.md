@@ -11,10 +11,27 @@ This document records the **branching**, **CI**, and **registry publish** choice
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| **`.github/workflows/rust_ci.yml`** | PRs + push to **`main`** | `cargo fmt`, `cargo clippy` (warnings allowed), `cargo test` + doctests on **ubuntu + Windows**; **ubuntu** `cargo test --features ci_expanded` (`db_connectorx` excluded — OpenSSL/Perl; test DB locally) |
-| **`.github/workflows/python_ci.yml`** | PRs + push to **`main`** (path-filtered) | `maturin develop` + pytest |
+| **`.github/workflows/rust_ci.yml`** | PRs + push to **`main`** (+ nightly schedule) | **Required merge gate**: `cargo fmt`, `cargo clippy` (warnings allowed), `cargo test` + doctests on **ubuntu + Windows**; **ubuntu** `cargo test --features ci_expanded` (`db_connectorx` excluded — OpenSSL/Perl). **Security**: dependency diff review on PRs + RustSec `cargo audit`. |
+| **`.github/workflows/python_ci.yml`** | PRs + push to **`main`** (path-filtered) | `maturin develop` + pytest; **Ubuntu + Py 3.12:** `maturin build` + `uv pip install` wheel smoke |
 | **`.github/workflows/rust_release.yml`** | Push tag **`v*`** | Publish to **crates.io** (only if tag is on **`main`** — see below) |
 | **`.github/workflows/python_release.yml`** | Push tag **`v*`** | Publish to **PyPI** (same **main** guard) |
+
+## “No merges to main if checks fail” (required branch protection)
+
+GitHub only blocks merges when **branch protection / rulesets** require passing checks.
+
+### Required checks to enable for `main`
+
+In **Settings → Branches → Branch protection rules** (or **Rulesets**), require status checks to pass before merging, and select:
+- `Security — dependency review (PR)`
+- `Security — RustSec cargo audit`
+- `ubuntu-latest — fmt, clippy, tests`
+- `windows-latest — fmt, clippy, tests`
+- `ubuntu — ci_expanded (no db_connectorx)`
+
+Recommended additional toggles:
+- **Require branches to be up to date before merging** (so the latest `main` is included in the tested commit)
+- **Require a pull request before merging** (no direct pushes)
 
 ## Deploy / registry policy (chosen: **A + main guard**)
 

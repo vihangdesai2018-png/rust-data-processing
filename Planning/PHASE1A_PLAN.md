@@ -220,21 +220,21 @@ Goal: after merging a PR into `main`, have a predictable pipeline that builds/te
 
 Goal: after merging a PR into `main`, build wheels across OSes and (per policy) publish to PyPI.
 
-- [ ] **(Research)** Python packaging decisions to lock down:
-  - maturin configuration in `pyproject.toml`
-  - wheel strategy: per-Python wheels vs `abi3` (and minimum Python version)
-  - Linux wheel policy: manylinux target used by CI
-  - publishing policy: PyPI vs TestPyPI
-- [ ] **Story**: Add `.github/workflows/python_ci.yml` (build + test only)
-  - triggers: PRs to `main` + pushes to `main`
-  - steps: build extension (maturin), run Python smoke tests, run `python -m pip install .` style checks (as decided)
-- [ ] **Story**: Add `.github/workflows/python_release.yml` (deploy)
-  - trigger: push to `main` (post-merge) **or** tag (depends on research decision)
-  - steps: build wheels (Windows/macOS/Linux), upload to PyPI using token in GitHub Secrets
-  - guardrails: only publish when version changed and release is intended
-- [ ] **Story**: Add “Python release checklist” covering:
-  - version bump location (pyproject version) and alignment with Rust
-  - how to validate wheel artifacts (basic import + smoke run)
+- [x] **(Research)** Python packaging decisions to lock down:
+  - maturin configuration in **`python-wrapper/pyproject.toml`** **`[tool.maturin]`** + **`README_DEV.md`**
+  - wheel strategy: **per-interpreter wheels** via **`maturin-action --find-interpreter`**; **`abi3`** documented but **not** enabled (see **`How_TO_deploy.md`** + **`pyproject.toml`** comment)
+  - Linux wheel policy: **`manylinux: auto`** in **`python_release.yml`**
+  - publishing policy: **production PyPI** on tag **`v*`** + **`main`** ancestry guard; **TestPyPI** optional / manual
+- [x] **Story**: Add `.github/workflows/python_ci.yml` (build + test only)
+  - triggers: PRs + pushes to **`main`** (path-filtered: wrapper / `src/` / root `Cargo.toml` + lockfile)
+  - steps: **`uv sync`**, **`maturin develop --release`**, **`pytest`**; plus **Ubuntu + Python 3.12** wheel + **`pip install`** smoke
+- [x] **Story**: Add `.github/workflows/python_release.yml` (deploy)
+  - trigger: push tag **`v*`** with **origin/main** ancestry check (same policy as Rust release)
+  - steps: **`PyO3/maturin-action`** wheels (manylinux + sdist on Linux) + **Windows/macOS** → **`pypa/gh-action-pypi-publish`**
+  - guardrails: **tag must be on `main`**; **PyPI rejects duplicate version**; secrets **`PYPI_API_TOKEN`** (+ **`CRATES_IO_TOKEN`** for Rust sibling workflow)
+- [x] **Story**: Add “Python release checklist” covering:
+  - version bump / Rust alignment — **`Planning/RELEASE_CHECKLIST.md`** §1, §4
+  - validate wheels — same doc §4 (local **`maturin build`**) + §5 **`pip install ...==X.Y.Z`**
 
 ---
 
