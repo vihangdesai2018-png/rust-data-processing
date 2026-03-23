@@ -26,9 +26,13 @@ jobs:
     # - public repositories, OR
     # - private repositories with GitHub Advanced Security enabled.
     #
-    # Default behavior: run only for public repos (avoids permanent red builds on private repos).
-    # To force-enable (e.g., private repo with GHAS), set repo variable DEPENDENCY_REVIEW_ENABLED=true.
-    if: github.event_name == 'pull_request' && (github.event.repository.private == false || vars.DEPENDENCY_REVIEW_ENABLED == 'true')
+    # This also requires **Dependency graph** to be enabled in the repo settings.
+    #
+    # We keep this check **opt-in** to avoid permanent red builds when the repo settings
+    # (Dependency graph / GHAS) are not enabled yet.
+    #
+    # Enable by setting repo variable: DEPENDENCY_REVIEW_ENABLED=true
+    if: github.event_name == 'pull_request' && vars.DEPENDENCY_REVIEW_ENABLED == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v5

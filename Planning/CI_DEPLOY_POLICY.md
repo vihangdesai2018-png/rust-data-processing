@@ -43,10 +43,13 @@ Enable in GitHub:
   - **Dependency graph**: Enable
   - (Optional) Dependabot alerts/updates: Enable if you want GitHub-native alerting too
 
+This repo runs dependency review as **opt-in** to avoid permanent red CI when the setting is disabled:
+- Set repo variable **`DEPENDENCY_REVIEW_ENABLED=true`** to turn it on.
+
 ### Required checks to enable for `main`
 
 In **Settings → Branches → Branch protection rules** (or **Rulesets**), require status checks to pass before merging, and select:
-- `Security — dependency review (PR)` (only if your repo supports it; see prerequisite above)
+- `Security — dependency review (PR)` (**only if** you enabled Dependency graph/GHAS and set `DEPENDENCY_REVIEW_ENABLED=true`)
 - `Security — RustSec cargo audit`
 - `ubuntu-latest — fmt, clippy, tests`
 - `windows-latest — fmt, clippy, tests`
