@@ -22,7 +22,13 @@ jobs:
   dependency-review:
     name: Security — dependency review (PR)
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    # GitHub only supports dependency review on:
+    # - public repositories, OR
+    # - private repositories with GitHub Advanced Security enabled.
+    #
+    # Default behavior: run only for public repos (avoids permanent red builds on private repos).
+    # To force-enable (e.g., private repo with GHAS), set repo variable DEPENDENCY_REVIEW_ENABLED=true.
+    if: github.event_name == 'pull_request' && (github.event.repository.private == false || vars.DEPENDENCY_REVIEW_ENABLED == 'true')
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -39,6 +45,9 @@ jobs:
 
       - name: Audit Rust dependencies (RustSec)
         uses: actions-rust-lang/audit@v1
+        with:
+          # Do not try to open/update GitHub Issues from CI.
+          createIssues: false
 
   fmt-clippy-test:
     name: ${{ matrix.os }} — fmt, clippy, tests

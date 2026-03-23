@@ -20,10 +20,33 @@ This document records the **branching**, **CI**, and **registry publish** choice
 
 GitHub only blocks merges when **branch protection / rulesets** require passing checks.
 
+### RustSec audit configuration + exceptions
+
+RustSec scanning is configured via `.cargo/audit.toml`.
+
+- **Policy**: fail CI on vulnerabilities in the default build.
+- **Temporary exceptions**: we currently ignore two advisories which are only reachable through the optional ConnectorX path (`db_connectorx`):
+  - `RUSTSEC-2022-0040` (`owning_ref`): no fixed upgrade available upstream
+  - `RUSTSEC-2026-0009` (`time`): fixed in newer `time`, but that upgrade currently requires a newer Rust toolchain
+
+Phase 1a follow-up: revisit ConnectorX dependency stack (or MSRV) and remove these ignores.
+
+### Dependency review prerequisite (GitHub settings)
+
+`actions/dependency-review-action` relies on GitHub’s dependency review API.
+
+- **Public repos**: supported (but you must enable **Dependency graph**)
+- **Private repos**: requires **GitHub Advanced Security** for the org/repo (in addition to **Dependency graph**)
+
+Enable in GitHub:
+- Repo **Settings → Security & analysis**
+  - **Dependency graph**: Enable
+  - (Optional) Dependabot alerts/updates: Enable if you want GitHub-native alerting too
+
 ### Required checks to enable for `main`
 
 In **Settings → Branches → Branch protection rules** (or **Rulesets**), require status checks to pass before merging, and select:
-- `Security — dependency review (PR)`
+- `Security — dependency review (PR)` (only if your repo supports it; see prerequisite above)
 - `Security — RustSec cargo audit`
 - `ubuntu-latest — fmt, clippy, tests`
 - `windows-latest — fmt, clippy, tests`

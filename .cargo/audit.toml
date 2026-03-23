@@ -1,0 +1,30 @@
+# cargo-audit configuration for CI (RustSec).
+#
+# Rationale: we want to block merges on known vulnerabilities in the *default* build,
+# while being explicit about any temporary exceptions.
+#
+# Note: This repo includes optional database ingestion via ConnectorX (`db_connectorx`).
+# ConnectorX currently pulls in advisories with no upstream fix available without
+# larger dependency/MSRV shifts. We track these as Phase 1a follow-ups and keep
+# the ignores narrowly scoped to advisory IDs.
+
+[advisories]
+ignore = [
+  # ConnectorX transitive dependency; no fixed upgrade available.
+  # Applies to optional `db_connectorx` feature path.
+  "RUSTSEC-2022-0040",
+
+  # `time` DoS via stack exhaustion: fixed in >=0.3.47 which currently requires a newer Rust.
+  # Reached via ConnectorX → mysql_common → time.
+  "RUSTSEC-2026-0009",
+]
+
+# Keep informational advisories visible in logs but do not fail CI on them by default.
+informational_warnings = ["unmaintained", "unsound", "yanked"]
+severity_threshold = "low"
+
+[output]
+deny = []
+format = "terminal"
+quiet = false
+show_tree = true
