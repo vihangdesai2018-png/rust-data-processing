@@ -133,6 +133,12 @@ Guidelines:
 
 ## Common workflows
 
+### GitHub Actions (summary)
+
+- **`.github/workflows/rust_ci.yml`** — on every PR and push to **`main`**: `fmt`, `clippy`, tests (ubuntu + Windows), plus **ubuntu** `cargo test --features ci_expanded` (no **`db_connectorx`** — avoids OpenSSL/Perl in CI).
+- **`.github/workflows/rust_release.yml`** — on tag **`v*`** (commit must be on **`main`**): `cargo publish --dry-run` then `cargo publish`.
+- Policy write-up: **`Planning/CI_DEPLOY_POLICY.md`**.
+
 ### Build + test
 
 ```powershell
@@ -142,6 +148,9 @@ cargo test
 ### Run feature-gated test suites
 
 ```powershell
+# Same as GitHub Actions “expanded” job (no ConnectorX → no OpenSSL/Perl on this path)
+cargo test --locked --features ci_expanded
+
 # Deep tests (large fixtures)
 ./scripts/run_deep_tests.ps1
 
@@ -151,9 +160,15 @@ cargo test --features excel
 # Excel tests that generate an .xlsx at runtime
 cargo test --features excel_test_writer
 
-# DB ingestion (ConnectorX)
+# DB ingestion (ConnectorX) — see “Windows: OpenSSL / perl” below
 cargo test --features db_connectorx
 ```
+
+### Windows: OpenSSL / “perl not found” / build hang
+
+**`cargo test --all-features`** or **`--features db_connectorx`** enables **ConnectorX**, which pulls **OpenSSL**. On Windows, **openssl-sys** may try to **compile OpenSSL from source** and needs **Perl** (e.g. **Strawberry Perl**). A failed configure step can look like a **hang**; **incremental** builds may keep retrying until you **clean**.
+
+**Recover:** `cargo clean` (or `cargo clean -p openssl-sys`), then prefer **`cargo test --locked --features ci_expanded`** for parity with CI. Use **`db_connectorx`** only when Perl/OpenSSL (or **WSL** / **Linux**) is set up.
 
 ### Run benchmarks
 
@@ -201,6 +216,7 @@ cargo test --features db_connectorx
 cargo test --no-default-features
 ```
 
+- **`ci_expanded`**: `deep_tests` + `excel_test_writer` + `arrow` + `serde_arrow` (matches **`rust_ci.yml`**; no **`db_connectorx`**).
 - **Deep tests**:
 
 ```powershell

@@ -2,17 +2,17 @@
 
 use std::collections::HashSet;
 
-use rust_data_processing::ingestion::{ingest_from_path, IngestionOptions};
+use rust_data_processing::ingestion::{IngestionOptions, ingest_from_path};
+use rust_data_processing::outliers::{OutlierMethod, OutlierOptions, detect_outliers_dataset};
 use rust_data_processing::pipeline::{Agg, DataFrame};
 use rust_data_processing::processing::{
-    arg_max_row, arg_min_row, feature_wise_mean_std, reduce, top_k_by_frequency, ReduceOp,
-    VarianceKind,
+    ReduceOp, VarianceKind, arg_max_row, arg_min_row, feature_wise_mean_std, reduce,
+    top_k_by_frequency,
 };
-use rust_data_processing::profiling::{profile_dataset, ProfileOptions, SamplingMode};
-use rust_data_processing::outliers::{detect_outliers_dataset, OutlierMethod, OutlierOptions};
-use rust_data_processing::validation::{validate_dataset, Check, Severity, ValidationSpec};
+use rust_data_processing::profiling::{ProfileOptions, SamplingMode, profile_dataset};
 use rust_data_processing::transform::{TransformSpec, TransformStep};
 use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
+use rust_data_processing::validation::{Check, Severity, ValidationSpec, validate_dataset};
 
 fn assert_value_close_mem_polars(mem: Value, polars: Value, eps_abs: f64) {
     match (mem, polars) {
@@ -45,11 +45,7 @@ fn assert_feature_wise_parity(ds: &DataSet, cols: &[&str], kind: VarianceKind) {
     for i in 0..mem.len() {
         assert_eq!(mem[i].0, pol[i].0, "column name mismatch at {i}");
         assert_value_close_mem_polars(mem[i].1.mean.clone(), pol[i].1.mean.clone(), eps);
-        assert_value_close_mem_polars(
-            mem[i].1.std_dev.clone(),
-            pol[i].1.std_dev.clone(),
-            eps,
-        );
+        assert_value_close_mem_polars(mem[i].1.std_dev.clone(), pol[i].1.std_dev.clone(), eps);
     }
 }
 
@@ -132,7 +128,12 @@ fn deep_reduce_new_ops_parity_in_memory_vs_polars_on_seattle_weather() {
     match (mean, mn, mx) {
         (Value::Float64(mu), Value::Float64(lo), Value::Float64(hi)) => {
             assert!(mu >= lo && mu <= hi, "mean should lie between min and max");
-            let v = match reduce(&ds, "temp_max", ReduceOp::Variance(VarianceKind::Population)).unwrap()
+            let v = match reduce(
+                &ds,
+                "temp_max",
+                ReduceOp::Variance(VarianceKind::Population),
+            )
+            .unwrap()
             {
                 Value::Float64(x) => x,
                 other => panic!("expected variance Float64, got {other:?}"),
@@ -231,7 +232,11 @@ fn deep_group_by_mean_max_count_distinct_on_seattle_weather() {
             sum_rows += n;
         }
     }
-    assert_eq!(sum_rows, ds.row_count() as i64, "CountRows per group should sum to total rows");
+    assert_eq!(
+        sum_rows,
+        ds.row_count() as i64,
+        "CountRows per group should sum to total rows"
+    );
 }
 
 #[test]
@@ -361,7 +366,10 @@ fn deep_json_nested_job_runs_extracts_dot_paths_and_handles_nulls() {
 
     assert_eq!(ds.row_count(), 3);
     assert_eq!(ds.rows[0][0], Value::Int64(12001));
-    assert_eq!(ds.rows[0][3], Value::Utf8("daily_ingest_events".to_string()));
+    assert_eq!(
+        ds.rows[0][3],
+        Value::Utf8("daily_ingest_events".to_string())
+    );
     assert_eq!(ds.rows[1][5], Value::Utf8("prod".to_string()));
 
     // Third row has cluster=null and bytes_written=null.
@@ -407,7 +415,11 @@ fn deep_transform_spec_and_sql_work_on_real_fixture() {
             factor: 2.0,
         })
         .with_step(TransformStep::Select {
-            columns: vec!["date".to_string(), "wx".to_string(), "temp_max_x2".to_string()],
+            columns: vec![
+                "date".to_string(),
+                "wx".to_string(),
+                "temp_max_x2".to_string(),
+            ],
         });
 
     let mapped = spec.apply(&ds).unwrap();
@@ -426,7 +438,10 @@ fn deep_transform_spec_and_sql_work_on_real_fixture() {
     .collect()
     .unwrap();
 
-    assert_eq!(out.schema.field_names().collect::<Vec<_>>(), vec!["date", "wx"]);
+    assert_eq!(
+        out.schema.field_names().collect::<Vec<_>>(),
+        vec!["date", "wx"]
+    );
     assert_eq!(out.row_count(), 5);
 }
 
@@ -575,7 +590,11 @@ fn deep_parquet_apache_fixture_ingests_supported_columns() {
     // without relying on Polars' inferred dtypes.
     let mut casted_cols: Vec<Series> = Vec::with_capacity(schema.fields.len());
     for field in &schema.fields {
-        let s = df.column(&field.name).unwrap().as_materialized_series().clone();
+        let s = df
+            .column(&field.name)
+            .unwrap()
+            .as_materialized_series()
+            .clone();
         let target = match field.data_type {
             DataType::Int64 => polars::datatypes::DataType::Int64,
             DataType::Float64 => polars::datatypes::DataType::Float64,
@@ -660,7 +679,10 @@ fn deep_excel_multisheet_formulas_and_nulls() {
     // Sheet: RawWeather
     let ws_raw = wb.add_worksheet();
     ws_raw.set_name("RawWeather").unwrap();
-    for (c, h) in ["date", "temp_max", "temp_min", "wind", "weather"].into_iter().enumerate() {
+    for (c, h) in ["date", "temp_max", "temp_min", "wind", "weather"]
+        .into_iter()
+        .enumerate()
+    {
         ws_raw.write_string(0, c as u16, h).unwrap();
     }
     ws_raw.write_string(1, 0, "2012-01-01").unwrap();
@@ -712,4 +734,3 @@ fn deep_excel_multisheet_formulas_and_nulls() {
 
     let _ = std::fs::remove_file(&path);
 }
-

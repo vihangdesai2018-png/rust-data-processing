@@ -47,7 +47,10 @@ pub enum Severity {
 /// A single validation check.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Check {
-    NotNull { column: String, severity: Severity },
+    NotNull {
+        column: String,
+        severity: Severity,
+    },
     RangeF64 {
         column: String,
         min: f64,
@@ -66,7 +69,10 @@ pub enum Check {
         values: Vec<Value>,
         severity: Severity,
     },
-    Unique { column: String, severity: Severity },
+    Unique {
+        column: String,
+        severity: Severity,
+    },
 }
 
 /// A collection of checks.
@@ -132,19 +138,24 @@ pub fn validate_frame(df: &DataFrame, spec: &ValidationSpec) -> IngestionResult<
         exprs.push(fail_count_expr(chk).alias(&fail_count_col_name(i)));
     }
 
-    let agg = lf
-        .select(exprs)
-        .collect()
-        .map_err(|e| crate::ingestion::polars_bridge::polars_error_to_ingestion("failed to compute validation counts", e))?;
+    let agg = lf.select(exprs).collect().map_err(|e| {
+        crate::ingestion::polars_bridge::polars_error_to_ingestion(
+            "failed to compute validation counts",
+            e,
+        )
+    })?;
 
     let mut results: Vec<CheckResult> = Vec::with_capacity(spec.checks.len());
     let mut failed_checks = 0usize;
     let mut max_sev: Option<Severity> = None;
 
     for (i, chk) in spec.checks.iter().cloned().enumerate() {
-        let col = agg
-            .column(&fail_count_col_name(i))
-            .map_err(|e| crate::ingestion::polars_bridge::polars_error_to_ingestion("validation missing agg column", e))?;
+        let col = agg.column(&fail_count_col_name(i)).map_err(|e| {
+            crate::ingestion::polars_bridge::polars_error_to_ingestion(
+                "validation missing agg column",
+                e,
+            )
+        })?;
         let failed_count = series_to_usize(col.as_materialized_series())?.unwrap_or(0);
 
         if failed_count > 0 {
@@ -181,12 +192,14 @@ pub fn render_validation_report_json(rep: &ValidationReport) -> IngestionResult<
     let results: Vec<serde_json::Value> = rep
         .results
         .iter()
-        .map(|r| serde_json::json!({
-            "check": format!("{:?}", r.check),
-            "failed_count": r.failed_count,
-            "examples": r.examples.iter().map(value_to_json).collect::<Vec<_>>(),
-            "message": r.message,
-        }))
+        .map(|r| {
+            serde_json::json!({
+                "check": format!("{:?}", r.check),
+                "failed_count": r.failed_count,
+                "examples": r.examples.iter().map(value_to_json).collect::<Vec<_>>(),
+                "message": r.message,
+            })
+        })
         .collect();
 
     serde_json::to_string_pretty(&serde_json::json!({
@@ -243,23 +256,31 @@ fn severity_of(chk: &Check) -> Severity {
 fn default_message(chk: &Check, failed: usize) -> String {
     match chk {
         Check::NotNull { column, .. } => format!("column '{column}' has {failed} null(s)"),
-        Check::RangeF64 { column, min, max, .. } => {
+        Check::RangeF64 {
+            column, min, max, ..
+        } => {
             format!("column '{column}' has {failed} value(s) outside [{min}, {max}]")
         }
-        Check::RegexMatch { column, pattern, .. } => {
+        Check::RegexMatch {
+            column, pattern, ..
+        } => {
             format!("column '{column}' has {failed} value(s) not matching /{pattern}/")
         }
-        Check::InSet { column, .. } => format!("column '{column}' has {failed} value(s) not in set"),
-        Check::Unique { column, .. } => format!("column '{column}' has {failed} duplicate(s) among non-null values"),
+        Check::InSet { column, .. } => {
+            format!("column '{column}' has {failed} value(s) not in set")
+        }
+        Check::Unique { column, .. } => {
+            format!("column '{column}' has {failed} duplicate(s) among non-null values")
+        }
     }
 }
 
 fn fail_count_expr(chk: &Check) -> Expr {
     match chk {
         Check::NotNull { column, .. } => col(column).is_null().sum(),
-        Check::RangeF64 { column, min, max, .. } => {
-            (col(column).lt(lit(*min)).or(col(column).gt(lit(*max)))).sum()
-        }
+        Check::RangeF64 {
+            column, min, max, ..
+        } => (col(column).lt(lit(*min)).or(col(column).gt(lit(*max)))).sum(),
         Check::RegexMatch {
             column,
             pattern,
@@ -322,12 +343,10 @@ fn values_to_series(values: &[Value]) -> Series {
 }
 
 fn series_to_usize(s: &Series) -> IngestionResult<Option<usize>> {
-    let av = s
-        .get(0)
-        .map_err(|e| IngestionError::Engine {
-            message: "failed to read validation value".to_string(),
-            source: Box::new(e),
-        })?;
+    let av = s.get(0).map_err(|e| IngestionError::Engine {
+        message: "failed to read validation value".to_string(),
+        source: Box::new(e),
+    })?;
     Ok(match av {
         AnyValue::Null => None,
         AnyValue::Int64(v) => Some(v.max(0) as usize),
@@ -337,19 +356,31 @@ fn series_to_usize(s: &Series) -> IngestionResult<Option<usize>> {
         other => {
             return Err(IngestionError::SchemaMismatch {
                 message: format!("expected integer-like validation value, got {other}"),
-            })
+            });
         }
     })
 }
 
-fn collect_examples(df: &DataFrame, chk: &Check, max_examples: usize) -> IngestionResult<Vec<Value>> {
+fn collect_examples(
+    df: &DataFrame,
+    chk: &Check,
+    max_examples: usize,
+) -> IngestionResult<Vec<Value>> {
     let mut lf = df.lazy_clone();
     let (col_name, predicate) = match chk {
         Check::NotNull { column, .. } => (column.as_str(), col(column).is_null()),
-        Check::RangeF64 { column, min, max, .. } => {
-            (column.as_str(), col(column).lt(lit(*min)).or(col(column).gt(lit(*max))))
-        }
-        Check::RegexMatch { column, pattern, strict, .. } => (
+        Check::RangeF64 {
+            column, min, max, ..
+        } => (
+            column.as_str(),
+            col(column).lt(lit(*min)).or(col(column).gt(lit(*max))),
+        ),
+        Check::RegexMatch {
+            column,
+            pattern,
+            strict,
+            ..
+        } => (
             column.as_str(),
             col(column)
                 .cast(DataType::String)
@@ -357,20 +388,34 @@ fn collect_examples(df: &DataFrame, chk: &Check, max_examples: usize) -> Ingesti
                 .contains(lit(pattern.clone()), *strict)
                 .not(),
         ),
-        Check::InSet { column, values, .. } => {
-            (column.as_str(), col(column).is_in(lit(values_to_series(values)), false).not())
-        }
+        Check::InSet { column, values, .. } => (
+            column.as_str(),
+            col(column)
+                .is_in(lit(values_to_series(values)), false)
+                .not(),
+        ),
         Check::Unique { .. } => return Ok(Vec::new()), // examples for duplicates would require group-by; skip in Phase 1
     };
 
-    lf = lf.filter(predicate).select([col(col_name)]).limit(max_examples as IdxSize);
-    let out = lf
-        .collect()
-        .map_err(|e| crate::ingestion::polars_bridge::polars_error_to_ingestion("failed to collect validation examples", e))?;
+    lf = lf
+        .filter(predicate)
+        .select([col(col_name)])
+        .limit(max_examples as IdxSize);
+    let out = lf.collect().map_err(|e| {
+        crate::ingestion::polars_bridge::polars_error_to_ingestion(
+            "failed to collect validation examples",
+            e,
+        )
+    })?;
 
     let s = out
         .column(col_name)
-        .map_err(|e| crate::ingestion::polars_bridge::polars_error_to_ingestion("missing validation example column", e))?
+        .map_err(|e| {
+            crate::ingestion::polars_bridge::polars_error_to_ingestion(
+                "missing validation example column",
+                e,
+            )
+        })?
         .as_materialized_series()
         .clone();
 
@@ -420,9 +465,17 @@ mod tests {
                 Field::new("score", DataType::Float64),
             ]),
             vec![
-                vec![Value::Int64(1), Value::Utf8("Ada".to_string()), Value::Float64(10.0)],
+                vec![
+                    Value::Int64(1),
+                    Value::Utf8("Ada".to_string()),
+                    Value::Float64(10.0),
+                ],
                 vec![Value::Int64(2), Value::Null, Value::Float64(200.0)],
-                vec![Value::Int64(2), Value::Utf8("Bob".to_string()), Value::Float64(5.0)],
+                vec![
+                    Value::Int64(2),
+                    Value::Utf8("Bob".to_string()),
+                    Value::Float64(5.0),
+                ],
             ],
         )
     }
@@ -458,4 +511,3 @@ mod tests {
         assert!(md.contains("## Validation report"));
     }
 }
-

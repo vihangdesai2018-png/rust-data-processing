@@ -59,13 +59,14 @@
 
 use crate::error::{IngestionError, IngestionResult};
 use crate::ingestion::polars_bridge::{
-    dataframe_to_dataset, dataset_to_dataframe, infer_schema_from_dataframe, polars_error_to_ingestion,
+    dataframe_to_dataset, dataset_to_dataframe, infer_schema_from_dataframe,
+    polars_error_to_ingestion,
 };
 use crate::processing::{FeatureMeanStd, ReduceOp, VarianceKind};
 use crate::types::{DataSet, DataType, Schema, Value};
 
-use polars::prelude::*;
 use polars::chunked_array::cast::CastOptions;
+use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 
 const REDUCE_SCALAR_COL: &str = "__rust_dp_reduce_scalar";
@@ -98,14 +99,31 @@ pub enum JoinKind {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Agg {
     /// Count rows in each group (includes nulls).
-    CountRows { alias: String },
+    CountRows {
+        alias: String,
+    },
     /// Count non-null values of a column in each group.
-    CountNotNull { column: String, alias: String },
-    Sum { column: String, alias: String },
-    Min { column: String, alias: String },
-    Max { column: String, alias: String },
+    CountNotNull {
+        column: String,
+        alias: String,
+    },
+    Sum {
+        column: String,
+        alias: String,
+    },
+    Min {
+        column: String,
+        alias: String,
+    },
+    Max {
+        column: String,
+        alias: String,
+    },
     /// Mean of numeric values (cast to `Float64` first), nulls ignored.
-    Mean { column: String, alias: String },
+    Mean {
+        column: String,
+        alias: String,
+    },
     Variance {
         column: String,
         alias: String,
@@ -116,10 +134,19 @@ pub enum Agg {
         alias: String,
         kind: VarianceKind,
     },
-    SumSquares { column: String, alias: String },
-    L2Norm { column: String, alias: String },
+    SumSquares {
+        column: String,
+        alias: String,
+    },
+    L2Norm {
+        column: String,
+        alias: String,
+    },
     /// Distinct count of non-null values in each group.
-    CountDistinctNonNull { column: String, alias: String },
+    CountDistinctNonNull {
+        column: String,
+        alias: String,
+    },
 }
 
 /// Casting behavior for [`DataFrame::cast_with_mode`].
@@ -182,13 +209,17 @@ impl DataFrame {
     /// Multiply a Float64 column by a constant factor (nulls remain null).
     pub fn multiply_f64(mut self, column: &str, factor: f64) -> IngestionResult<Self> {
         // Planning ops are infallible; errors surface at `collect` time.
-        self.lf = self.lf.with_columns([(col(column) * lit(factor)).alias(column)]);
+        self.lf = self
+            .lf
+            .with_columns([(col(column) * lit(factor)).alias(column)]);
         Ok(self)
     }
 
     /// Add a constant Float64 value to a column (nulls remain null).
     pub fn add_f64(mut self, column: &str, delta: f64) -> IngestionResult<Self> {
-        self.lf = self.lf.with_columns([(col(column) + lit(delta)).alias(column)]);
+        self.lf = self
+            .lf
+            .with_columns([(col(column) + lit(delta)).alias(column)]);
         Ok(self)
     }
 
@@ -233,7 +264,12 @@ impl DataFrame {
     }
 
     /// Cast a column with an explicit mode (strict vs lossy).
-    pub fn cast_with_mode(mut self, column: &str, to: DataType, mode: CastMode) -> IngestionResult<Self> {
+    pub fn cast_with_mode(
+        mut self,
+        column: &str,
+        to: DataType,
+        mode: CastMode,
+    ) -> IngestionResult<Self> {
         let dt = to_polars_dtype(&to);
         let expr = match mode {
             CastMode::Strict => col(column).strict_cast(dt),
@@ -293,7 +329,13 @@ impl DataFrame {
     /// Join this pipeline with another [`DataFrame`] on key columns.
     ///
     /// Note: join planning is infallible; missing-column errors surface at `collect()` time.
-    pub fn join(mut self, other: DataFrame, left_on: &[&str], right_on: &[&str], how: JoinKind) -> IngestionResult<Self> {
+    pub fn join(
+        mut self,
+        other: DataFrame,
+        left_on: &[&str],
+        right_on: &[&str],
+        how: JoinKind,
+    ) -> IngestionResult<Self> {
         if left_on.is_empty() || right_on.is_empty() {
             return Err(IngestionError::SchemaMismatch {
                 message: "join requires at least one join key on each side".to_string(),
@@ -416,11 +458,10 @@ impl DataFrame {
             exprs.push(cf.clone().mean().alias(format!("__fwm_{i}_mean").as_str()));
             exprs.push(cf.std(ddof).alias(format!("__fwm_{i}_std").as_str()));
         }
-        let df = self
-            .lf
-            .select(exprs)
-            .collect()
-            .map_err(|e| polars_error_to_ingestion("failed to collect feature_wise_mean_std", e))?;
+        let df =
+            self.lf.select(exprs).collect().map_err(|e| {
+                polars_error_to_ingestion("failed to collect feature_wise_mean_std", e)
+            })?;
 
         if df.height() == 0 {
             return Ok(columns
@@ -500,17 +541,8 @@ fn polars_reduce_expr(column: &str, op: ReduceOp) -> Expr {
             };
             c.clone().strict_cast(P::Float64).std(ddof)
         }
-        ReduceOp::SumSquares => c
-            .clone()
-            .strict_cast(P::Float64)
-            .pow(lit(2.0))
-            .sum(),
-        ReduceOp::L2Norm => c
-            .clone()
-            .strict_cast(P::Float64)
-            .pow(lit(2.0))
-            .sum()
-            .sqrt(),
+        ReduceOp::SumSquares => c.clone().strict_cast(P::Float64).pow(lit(2.0)).sum(),
+        ReduceOp::L2Norm => c.clone().strict_cast(P::Float64).pow(lit(2.0)).sum().sqrt(),
         ReduceOp::CountDistinctNonNull => c.drop_nulls().n_unique(),
     }
 }
@@ -619,7 +651,7 @@ pub type PolarsPipeline = DataFrame;
 #[cfg(test)]
 mod tests {
     use super::{Agg, DataFrame, JoinKind, PolarsPipeline, Predicate};
-    use crate::processing::{feature_wise_mean_std, filter, map, reduce, ReduceOp, VarianceKind};
+    use crate::processing::{ReduceOp, VarianceKind, feature_wise_mean_std, filter, map, reduce};
     use crate::types::{DataSet, DataType, Field, Schema, Value};
 
     fn sample_dataset() -> DataSet {
@@ -745,7 +777,10 @@ mod tests {
             .collect()
             .unwrap();
 
-        assert_eq!(out.schema.field_names().collect::<Vec<_>>(), vec!["score", "id"]);
+        assert_eq!(
+            out.schema.field_names().collect::<Vec<_>>(),
+            vec!["score", "id"]
+        );
         assert_eq!(out.row_count(), ds.row_count());
         assert_eq!(out.rows[0][0], Value::Float64(10.0));
         assert_eq!(out.rows[0][1], Value::Int64(1));
@@ -754,7 +789,10 @@ mod tests {
     #[test]
     fn polars_pipeline_sum_returns_none_for_missing_column() {
         let ds = sample_dataset();
-        let out = DataFrame::from_dataset(&ds).unwrap().sum("missing").unwrap();
+        let out = DataFrame::from_dataset(&ds)
+            .unwrap()
+            .sum("missing")
+            .unwrap();
         assert_eq!(out, None);
     }
 
@@ -783,7 +821,10 @@ mod tests {
     #[test]
     fn backwards_compatible_polars_pipeline_alias_exists() {
         let ds = sample_dataset();
-        let _ = PolarsPipeline::from_dataset(&ds).unwrap().select(&["id"]).unwrap();
+        let _ = PolarsPipeline::from_dataset(&ds)
+            .unwrap()
+            .select(&["id"])
+            .unwrap();
     }
 
     #[test]
@@ -812,7 +853,10 @@ mod tests {
             .collect()
             .unwrap();
 
-        assert_eq!(out.schema.field_names().collect::<Vec<_>>(), vec!["id", "score_i"]);
+        assert_eq!(
+            out.schema.field_names().collect::<Vec<_>>(),
+            vec!["id", "score_i"]
+        );
         assert_eq!(out.rows[0][1], Value::Float64(10.0));
         assert_eq!(out.rows[1][1], Value::Float64(0.0));
 
@@ -849,16 +893,14 @@ mod tests {
             .unwrap();
 
         // Order is not guaranteed; validate via a lookup.
-        let mut sums: std::collections::HashMap<String, (Value, Value)> = std::collections::HashMap::new();
+        let mut sums: std::collections::HashMap<String, (Value, Value)> =
+            std::collections::HashMap::new();
         for row in &out.rows {
             if let Value::Utf8(g) = &row[0] {
                 sums.insert(g.clone(), (row[1].clone(), row[2].clone()));
             }
         }
-        assert_eq!(
-            sums.get("A"),
-            Some(&(Value::Float64(3.0), Value::Int64(2)))
-        );
+        assert_eq!(sums.get("A"), Some(&(Value::Float64(3.0), Value::Int64(2))));
         assert_eq!(
             sums.get("B"),
             // Polars `sum` ignores nulls and returns 0.0 for all-null groups.
@@ -867,14 +909,20 @@ mod tests {
 
         // join
         let left = DataSet::new(
-            Schema::new(vec![Field::new("id", DataType::Int64), Field::new("name", DataType::Utf8)]),
+            Schema::new(vec![
+                Field::new("id", DataType::Int64),
+                Field::new("name", DataType::Utf8),
+            ]),
             vec![
                 vec![Value::Int64(1), Value::Utf8("Ada".to_string())],
                 vec![Value::Int64(2), Value::Utf8("Grace".to_string())],
             ],
         );
         let right = DataSet::new(
-            Schema::new(vec![Field::new("id", DataType::Int64), Field::new("score", DataType::Float64)]),
+            Schema::new(vec![
+                Field::new("id", DataType::Int64),
+                Field::new("score", DataType::Float64),
+            ]),
             vec![
                 vec![Value::Int64(1), Value::Float64(9.0)],
                 vec![Value::Int64(3), Value::Float64(7.0)],
@@ -936,8 +984,16 @@ mod tests {
         let ds = DataSet::new(
             schema,
             vec![
-                vec![Value::Utf8("A".to_string()), Value::Null, Value::Utf8("p".to_string())],
-                vec![Value::Utf8("A".to_string()), Value::Null, Value::Utf8("q".to_string())],
+                vec![
+                    Value::Utf8("A".to_string()),
+                    Value::Null,
+                    Value::Utf8("p".to_string()),
+                ],
+                vec![
+                    Value::Utf8("A".to_string()),
+                    Value::Null,
+                    Value::Utf8("q".to_string()),
+                ],
             ],
         );
         let out = DataFrame::from_dataset(&ds)
@@ -970,4 +1026,3 @@ mod tests {
         assert_eq!(out.rows[0][3], Value::Int64(2));
     }
 }
-

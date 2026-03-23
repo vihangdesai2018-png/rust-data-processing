@@ -1,0 +1,102 @@
+# Build manylinux + Windows + macOS wheels and upload to PyPI.
+# Requires repository secret: PYPI_API_TOKEN (PyPI API token with upload scope).
+#
+# Trigger: push a version tag v* — publishing runs ONLY if that tag points at a commit
+# already on origin/main (merge PR to main first, then tag the merge commit).
+
+name: Python (PyPI release)
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  require-commit-on-main:
+    name: Verify tag is on main
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history for ancestry check)
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Refuse publish unless tag points at a commit on origin/main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/main; then
+            echo "::error::Tag '${GITHUB_REF_NAME}' (${GITHUB_SHA}) is not an ancestor of origin/main."
+            echo "Merge your release to main first, then create the tag on that merge commit."
+            exit 1
+          fi
+          echo "OK: tagged commit is on main history."
+
+  build:
+    name: build (${{ matrix.os }})
+    needs: [require-commit-on-main]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Build wheels (Linux: manylinux + sdist)
+        if: matrix.os == 'ubuntu-latest'
+        uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          args: --release -o dist --find-interpreter --sdist
+          manylinux: auto
+          working-directory: python-wrapper
+
+      - name: Build wheels (Windows / macOS)
+        if: matrix.os != 'ubuntu-latest'
+        uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          args: --release -o dist --find-interpreter
+          working-directory: python-wrapper
+
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.os }}
+          path: python-wrapper/dist/*
+
+  publish:
+    name: Publish to PyPI
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Download all wheels + sdist
+        uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          path: artifacts
+          merge-multiple: true
+
+      # Artifacts may land in subfolders; collect *.whl and *.tar.gz into one directory.
+      - name: Flatten packages for PyPI
+        shell: bash
+        run: |
+          mkdir -p dist
+          find artifacts -type f \( -name '*.whl' -o -name '*.tar.gz' \) -exec cp {} dist/ \;
+          ls -la dist
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+          password: ${{ secrets.PYPI_API_TOKEN }}

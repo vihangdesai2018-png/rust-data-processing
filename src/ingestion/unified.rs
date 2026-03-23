@@ -8,17 +8,19 @@
 //! - If an [`super::observability::IngestionObserver`] is provided, success/failure/alerts are
 //!   reported to it.
 
-use std::path::{Path, PathBuf};
-use std::fmt;
-use std::sync::Arc;
 use std::error::Error as StdError;
+use std::fmt;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use crate::error::{IngestionError, IngestionResult};
 use crate::types::{DataSet, Schema};
 
-use super::observability::{IngestionContext, IngestionObserver, IngestionSeverity, IngestionStats};
-use super::{csv, excel, json, parquet};
+use super::observability::{
+    IngestionContext, IngestionObserver, IngestionSeverity, IngestionStats,
+};
 use super::polars_bridge::{infer_schema_from_dataframe_lossy, polars_error_to_ingestion};
+use super::{csv, excel, json, parquet};
 use polars::prelude::*;
 
 /// Supported ingestion formats.
@@ -266,12 +268,19 @@ pub fn ingest_from_path(
         IngestionFormat::Csv => csv::ingest_csv_from_path(path, schema),
         IngestionFormat::Json => json::ingest_json_from_path(path, schema),
         IngestionFormat::Parquet => parquet::ingest_parquet_from_path(path, schema),
-        IngestionFormat::Excel => ingest_excel_dispatch(path, schema, &options.excel_sheet_selection),
+        IngestionFormat::Excel => {
+            ingest_excel_dispatch(path, schema, &options.excel_sheet_selection)
+        }
     };
 
     if let Some(obs) = options.observer.as_ref() {
         match &result {
-            Ok(ds) => obs.on_success(&ctx, IngestionStats { rows: ds.row_count() }),
+            Ok(ds) => obs.on_success(
+                &ctx,
+                IngestionStats {
+                    rows: ds.row_count(),
+                },
+            ),
             Err(e) => {
                 let sev = severity_for_error(e);
                 obs.on_failure(&ctx, sev, e);
@@ -293,7 +302,10 @@ pub fn ingest_from_path(
 /// Notes:
 /// - For JSON, nested fields are inferred only at the **top level** (no dot-path expansion).
 /// - For Excel, inference uses a scan-based heuristic.
-pub fn infer_schema_from_path(path: impl AsRef<Path>, options: &IngestionOptions) -> IngestionResult<Schema> {
+pub fn infer_schema_from_path(
+    path: impl AsRef<Path>,
+    options: &IngestionOptions,
+) -> IngestionResult<Schema> {
     let path = path.as_ref();
     let fmt = match options.format {
         Some(f) => f,
@@ -328,10 +340,13 @@ pub fn infer_schema_from_path(path: impl AsRef<Path>, options: &IngestionOptions
             infer_schema_from_dataframe_lossy(&df)
         }
         IngestionFormat::Parquet => {
-            let df = LazyFrame::scan_parquet(path.to_string_lossy().as_ref().into(), ScanArgsParquet::default())
-                .map_err(|e| polars_error_to_ingestion("failed to read parquet with polars", e))?
-                .collect()
-                .map_err(|e| polars_error_to_ingestion("failed to collect parquet with polars", e))?;
+            let df = LazyFrame::scan_parquet(
+                path.to_string_lossy().as_ref().into(),
+                ScanArgsParquet::default(),
+            )
+            .map_err(|e| polars_error_to_ingestion("failed to read parquet with polars", e))?
+            .collect()
+            .map_err(|e| polars_error_to_ingestion("failed to collect parquet with polars", e))?;
             infer_schema_from_dataframe_lossy(&df)
         }
         IngestionFormat::Excel => infer_excel_schema_dispatch(path, &options.excel_sheet_selection),
@@ -339,7 +354,10 @@ pub fn infer_schema_from_path(path: impl AsRef<Path>, options: &IngestionOptions
 }
 
 /// Convenience wrapper: infer schema and then ingest.
-pub fn ingest_from_path_infer(path: impl AsRef<Path>, options: &IngestionOptions) -> IngestionResult<DataSet> {
+pub fn ingest_from_path_infer(
+    path: impl AsRef<Path>,
+    options: &IngestionOptions,
+) -> IngestionResult<DataSet> {
     let schema = infer_schema_from_path(path.as_ref(), options)?;
     ingest_from_path(path, &schema, options)
 }
@@ -386,15 +404,14 @@ fn error_chain_contains_io(e: &(dyn StdError + 'static)) -> bool {
 }
 
 fn infer_format_from_path(path: &Path) -> IngestionResult<IngestionFormat> {
-    let ext = path
-        .extension()
-        .and_then(|s| s.to_str())
-        .ok_or_else(|| IngestionError::SchemaMismatch {
+    let ext = path.extension().and_then(|s| s.to_str()).ok_or_else(|| {
+        IngestionError::SchemaMismatch {
             message: format!(
                 "cannot infer format: path has no extension ({})",
                 path.display()
             ),
-        })?;
+        }
+    })?;
 
     IngestionFormat::from_extension(ext).ok_or_else(|| IngestionError::SchemaMismatch {
         message: format!(
@@ -411,8 +428,12 @@ fn ingest_excel_dispatch(
 ) -> IngestionResult<DataSet> {
     match sel {
         ExcelSheetSelection::First => excel::ingest_excel_from_path(path, None, schema),
-        ExcelSheetSelection::Sheet(name) => excel::ingest_excel_from_path(path, Some(name.as_str()), schema),
-        ExcelSheetSelection::AllSheets => excel::ingest_excel_workbook_from_path(path, None, schema),
+        ExcelSheetSelection::Sheet(name) => {
+            excel::ingest_excel_from_path(path, Some(name.as_str()), schema)
+        }
+        ExcelSheetSelection::AllSheets => {
+            excel::ingest_excel_workbook_from_path(path, None, schema)
+        }
         ExcelSheetSelection::Sheets(names) => {
             let refs: Vec<&str> = names.iter().map(|s| s.as_str()).collect();
             excel::ingest_excel_workbook_from_path(path, Some(refs.as_slice()), schema)
@@ -423,7 +444,9 @@ fn ingest_excel_dispatch(
 fn infer_excel_schema_dispatch(path: &Path, sel: &ExcelSheetSelection) -> IngestionResult<Schema> {
     match sel {
         ExcelSheetSelection::First => excel::infer_excel_schema_from_path(path, None),
-        ExcelSheetSelection::Sheet(name) => excel::infer_excel_schema_from_path(path, Some(name.as_str())),
+        ExcelSheetSelection::Sheet(name) => {
+            excel::infer_excel_schema_from_path(path, Some(name.as_str()))
+        }
         ExcelSheetSelection::AllSheets => excel::infer_excel_schema_workbook_from_path(path, None),
         ExcelSheetSelection::Sheets(names) => {
             let refs: Vec<&str> = names.iter().map(|s| s.as_str()).collect();
@@ -461,4 +484,3 @@ impl IngestionRequest {
         ingest_from_path(&self.path, &self.schema, &self.options)
     }
 }
-

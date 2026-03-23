@@ -1,6 +1,6 @@
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 
-use rust_data_processing::outliers::{detect_outliers_dataset, OutlierMethod, OutlierOptions};
+use rust_data_processing::outliers::{OutlierMethod, OutlierOptions, detect_outliers_dataset};
 use rust_data_processing::profiling::SamplingMode;
 use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
 
@@ -8,7 +8,11 @@ fn make_dataset(rows: usize) -> DataSet {
     let schema = Schema::new(vec![Field::new("x", DataType::Float64)]);
     let mut data = Vec::with_capacity(rows);
     for i in 0..rows {
-        let v = if i % 10_000 == 0 { 10_000.0 } else { (i as f64) * 0.001 };
+        let v = if i % 10_000 == 0 {
+            10_000.0
+        } else {
+            (i as f64) * 0.001
+        };
         data.push(vec![Value::Float64(v)]);
     }
     DataSet::new(schema, data)
@@ -59,4 +63,3 @@ fn bench_outliers(c: &mut Criterion) {
 
 criterion_group!(benches, bench_outliers);
 criterion_main!(benches);
-

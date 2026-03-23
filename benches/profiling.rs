@@ -1,6 +1,6 @@
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 
-use rust_data_processing::profiling::{profile_dataset, ProfileOptions, SamplingMode};
+use rust_data_processing::profiling::{ProfileOptions, SamplingMode, profile_dataset};
 use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
 
 fn make_dataset(rows: usize) -> DataSet {
@@ -60,4 +60,3 @@ fn bench_profiling(c: &mut Criterion) {
 
 criterion_group!(benches, bench_profiling);
 criterion_main!(benches);
-

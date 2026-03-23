@@ -283,18 +283,18 @@
 //! - [`processing::feature_wise_mean_std`]: one scan, mean + std for several numeric columns; [`pipeline::DataFrame::feature_wise_mean_std`] for Polars.
 //! - [`processing::arg_max_row`], [`processing::arg_min_row`], [`processing::top_k_by_frequency`]: row extrema and label top‑k.
 
+pub mod cdc;
 pub mod error;
+pub mod execution;
 pub mod ingestion;
+pub mod outliers;
 pub mod pipeline;
 pub mod processing;
-pub mod execution;
-pub mod cdc;
 pub mod profiling;
-pub mod validation;
-pub mod outliers;
-pub mod transform;
-pub mod types;
 #[cfg(feature = "sql")]
 pub mod sql;
+pub mod transform;
+pub mod types;
+pub mod validation;
 
 pub use error::{IngestionError, IngestionResult};

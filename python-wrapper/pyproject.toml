@@ -44,3 +44,5 @@ pythonpath = ["."]
 module-name = "rust_data_processing._rust_data_processing"
 python-source = "."
 # Optional wheel builds with DB: set `features = ["db"]` here or pass `maturin build --features db`.
+# Optional abi3 (stable Python ABI): enable PyO3 `abi3-py310` (or similar) in Cargo.toml and set
+# `py-limited-api = true` here — fewer wheels, stricter PyO3 API limits. See How_TO_deploy.md.

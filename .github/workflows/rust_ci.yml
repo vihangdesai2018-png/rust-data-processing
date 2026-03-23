@@ -1,0 +1,72 @@
+# Build + test the Rust library on every PR and on pushes to main.
+# (Python wrapper is covered by python_ci.yml.)
+
+name: Rust CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fmt-clippy-test:
+    name: ${{ matrix.os }} — fmt, clippy, tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-targets: "true"
+
+      - name: cargo fmt
+        run: cargo fmt --all -- --check
+
+      # Omit `-D warnings` until the crate is clippy-clean under the latest stable lint set.
+      - name: cargo clippy
+        run: cargo clippy --locked --all-targets
+
+      - name: cargo test (default features)
+        run: cargo test --locked
+
+      - name: cargo test (doctests)
+        run: cargo test --locked --doc
+
+  # `db_connectorx` omitted: ConnectorX pulls OpenSSL (Perl / vendored build pain on Windows).
+  # Local parity: `cargo test --locked --features ci_expanded`
+  expanded-features-ubuntu:
+    name: ubuntu — ci_expanded (no db_connectorx)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-targets: "true"
+
+      - name: cargo test (--features ci_expanded)
+        run: cargo test --locked --features ci_expanded

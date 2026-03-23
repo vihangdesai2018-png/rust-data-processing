@@ -15,8 +15,8 @@
 //! - [`json`]
 //! - [`parquet`]
 
-pub mod csv;
 pub mod builder;
+pub mod csv;
 #[cfg(feature = "excel")]
 pub mod excel;
 #[cfg(not(feature = "excel"))]
@@ -67,10 +67,10 @@ pub mod excel {
         Err(disabled())
     }
 }
-pub mod json;
-pub mod parquet;
 #[cfg(feature = "db_connectorx")]
 pub mod db;
+pub mod json;
+pub mod parquet;
 #[cfg(not(feature = "db_connectorx"))]
 pub mod db {
     //! Direct DB ingestion stubs when `db_connectorx` is disabled.
@@ -95,17 +95,17 @@ pub mod db {
     }
 }
 pub mod observability;
-pub mod unified;
 pub(crate) mod polars_bridge;
+pub mod unified;
 
-pub use observability::{
-    CompositeObserver, FileObserver, IngestionContext, IngestionObserver, IngestionSeverity, IngestionStats,
-    StdErrObserver,
-};
 pub use builder::IngestionOptionsBuilder;
+pub use observability::{
+    CompositeObserver, FileObserver, IngestionContext, IngestionObserver, IngestionSeverity,
+    IngestionStats, StdErrObserver,
+};
 pub use unified::{
-    ingest_from_path, ingest_from_path_infer, infer_schema_from_path, ExcelSheetSelection, IngestionFormat,
-    IngestionOptions, IngestionRequest,
+    ExcelSheetSelection, IngestionFormat, IngestionOptions, IngestionRequest,
+    infer_schema_from_path, ingest_from_path, ingest_from_path_infer,
 };
 
 pub use db::{ingest_from_db, ingest_from_db_infer};

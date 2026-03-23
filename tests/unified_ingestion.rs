@@ -9,9 +9,9 @@ use parquet::file::properties::WriterProperties;
 use parquet::file::writer::SerializedFileWriter;
 use parquet::schema::parser::parse_message_type;
 
-use rust_data_processing::ingestion::{ingest_from_path, IngestionFormat, IngestionOptions};
 #[cfg(feature = "excel_test_writer")]
 use rust_data_processing::ingestion::ExcelSheetSelection;
+use rust_data_processing::ingestion::{IngestionFormat, IngestionOptions, ingest_from_path};
 use rust_data_processing::types::{DataType, Field, Schema, Value};
 
 fn tmp_file(ext: &str) -> PathBuf {
@@ -168,7 +168,12 @@ fn unified_ingest_switch_formats_same_schema() {
     let schema = people_schema();
 
     // CSV
-    let ds_csv = ingest_from_path("tests/fixtures/people.csv", &schema, &IngestionOptions::default()).unwrap();
+    let ds_csv = ingest_from_path(
+        "tests/fixtures/people.csv",
+        &schema,
+        &IngestionOptions::default(),
+    )
+    .unwrap();
     assert_eq!(ds_csv.row_count(), 2);
 
     // Parquet

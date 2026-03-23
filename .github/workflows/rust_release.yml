@@ -1,0 +1,57 @@
+# Publish the Rust crate to crates.io only when a version tag is pushed and that tag
+# points at a commit already on origin/main (merge to main first, then tag).
+#
+# Secret: CRATES_IO_TOKEN — crates.io API token (see Planning/How_TO_deploy.md).
+
+name: Rust (crates.io release)
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  require-commit-on-main:
+    name: Verify tag is on main
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history for ancestry check)
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Refuse publish unless tag points at a commit on origin/main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/main; then
+            echo "::error::Tag '${GITHUB_REF_NAME}' (${GITHUB_SHA}) is not an ancestor of origin/main."
+            echo "Merge your release to main first, then create the tag on that merge commit."
+            exit 1
+          fi
+          echo "OK: tagged commit is on main history."
+
+  publish:
+    name: cargo publish
+    needs: [require-commit-on-main]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: cargo publish --dry-run
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        run: cargo publish --locked --dry-run
+
+      - name: cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        run: cargo publish --locked

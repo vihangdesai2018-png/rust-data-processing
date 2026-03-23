@@ -1,7 +1,7 @@
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 
 use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
-use rust_data_processing::validation::{validate_dataset, Check, Severity, ValidationSpec};
+use rust_data_processing::validation::{Check, Severity, ValidationSpec, validate_dataset};
 
 fn make_dataset(rows: usize) -> DataSet {
     let schema = Schema::new(vec![
@@ -59,4 +59,3 @@ fn bench_validation(c: &mut Criterion) {
 
 criterion_group!(benches, bench_validation);
 criterion_main!(benches);
-

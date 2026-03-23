@@ -51,6 +51,9 @@ db_connectorx = [
   "connectorx/src_mssql",
   "connectorx/src_oracle",
 ]
+# Same feature set as `rust_ci.yml` “expanded” job: deep tests + Arrow/serde_arrow + Excel writer,
+# but **not** `db_connectorx` (ConnectorX → OpenSSL; needs Perl or system SSL on Windows).
+ci_expanded = ["deep_tests", "excel_test_writer", "arrow", "serde_arrow"]
 
 [dev-dependencies]
 criterion = "0.5"

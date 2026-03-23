@@ -1,0 +1,56 @@
+# Build the PyO3 extension and run pytest (no Rust integration tests here).
+# Triggers when the wrapper, library, or this file changes.
+
+name: Python wrapper CI
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "python-wrapper/**"
+      - "src/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/python_ci.yml"
+  pull_request:
+    paths:
+      - "python-wrapper/**"
+      - "src/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/python_ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.os }} · Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Sync deps, build extension, pytest (unit)
+        working-directory: python-wrapper
+        run: |
+          uv sync --group dev
+          uv run maturin develop --release
+          uv run pytest -m "not deep and not benchmark" -q

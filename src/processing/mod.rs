@@ -57,7 +57,6 @@ pub mod reduce;
 pub use filter::filter;
 pub use map::map;
 pub use multi::{
-    arg_max_row, arg_min_row, feature_wise_mean_std, top_k_by_frequency, FeatureMeanStd,
+    FeatureMeanStd, arg_max_row, arg_min_row, feature_wise_mean_std, top_k_by_frequency,
 };
-pub use reduce::{reduce, ReduceOp, VarianceKind};
-
+pub use reduce::{ReduceOp, VarianceKind, reduce};

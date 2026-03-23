@@ -141,7 +141,12 @@ pub fn detect_outliers_frame(
             ])
             .collect(),
     }
-    .map_err(|e| crate::ingestion::polars_bridge::polars_error_to_ingestion("failed to compute outlier stats", e))?;
+    .map_err(|e| {
+        crate::ingestion::polars_bridge::polars_error_to_ingestion(
+            "failed to compute outlier stats",
+            e,
+        )
+    })?;
 
     let row_count = read_f64(&stats_df, "__rows")?.unwrap_or(0.0) as usize;
 
@@ -150,7 +155,9 @@ pub fn detect_outliers_frame(
             let mean = read_f64(&stats_df, "__mean")?;
             let std = read_f64(&stats_df, "__std")?;
             let pred = match (mean, std) {
-                (Some(m), Some(s)) if s > 0.0 => ((col(column) - lit(m)) / lit(s)).abs().gt(lit(threshold)),
+                (Some(m), Some(s)) if s > 0.0 => {
+                    ((col(column) - lit(m)) / lit(s)).abs().gt(lit(threshold))
+                }
                 _ => lit(false),
             };
             (
@@ -176,7 +183,11 @@ pub fn detect_outliers_frame(
                     let iqr = b - a;
                     let lo = a - k * iqr;
                     let hi = b + k * iqr;
-                    (Some(lo), Some(hi), col(column).lt(lit(lo)).or(col(column).gt(lit(hi))))
+                    (
+                        Some(lo),
+                        Some(hi),
+                        col(column).lt(lit(lo)).or(col(column).gt(lit(hi))),
+                    )
                 }
                 _ => (None, None, lit(false)),
             };
@@ -203,13 +214,20 @@ pub fn detect_outliers_frame(
                     .clone()
                     .select([(col(column) - lit(m)).abs().median().alias("__mad")])
                     .collect()
-                    .map_err(|e| crate::ingestion::polars_bridge::polars_error_to_ingestion("failed to compute MAD", e))?;
+                    .map_err(|e| {
+                        crate::ingestion::polars_bridge::polars_error_to_ingestion(
+                            "failed to compute MAD",
+                            e,
+                        )
+                    })?;
                 read_f64(&mad_df, "__mad")?
             } else {
                 None
             };
             let pred = match (median, mad) {
-                (Some(m), Some(d)) if d > 0.0 => (lit(0.6745) * (col(column) - lit(m)).abs() / lit(d)).gt(lit(threshold)),
+                (Some(m), Some(d)) if d > 0.0 => {
+                    (lit(0.6745) * (col(column) - lit(m)).abs() / lit(d)).gt(lit(threshold))
+                }
                 _ => lit(false),
             };
             (
@@ -235,7 +253,12 @@ pub fn detect_outliers_frame(
         .filter(predicate.clone())
         .select([len().alias("__outliers")])
         .collect()
-        .map_err(|e| crate::ingestion::polars_bridge::polars_error_to_ingestion("failed to count outliers", e))?;
+        .map_err(|e| {
+            crate::ingestion::polars_bridge::polars_error_to_ingestion(
+                "failed to count outliers",
+                e,
+            )
+        })?;
     let outlier_count = read_f64(&outlier_count_df, "__outliers")?.unwrap_or(0.0) as usize;
 
     let examples = if outlier_count > 0 && options.max_examples > 0 {
@@ -245,10 +268,20 @@ pub fn detect_outliers_frame(
             .select([col(column)])
             .limit(options.max_examples as IdxSize)
             .collect()
-            .map_err(|e| crate::ingestion::polars_bridge::polars_error_to_ingestion("failed to collect outlier examples", e))?;
+            .map_err(|e| {
+                crate::ingestion::polars_bridge::polars_error_to_ingestion(
+                    "failed to collect outlier examples",
+                    e,
+                )
+            })?;
         let s = ex_df
             .column(column)
-            .map_err(|e| crate::ingestion::polars_bridge::polars_error_to_ingestion("missing outlier column", e))?
+            .map_err(|e| {
+                crate::ingestion::polars_bridge::polars_error_to_ingestion(
+                    "missing outlier column",
+                    e,
+                )
+            })?
             .as_materialized_series();
         series_to_f64_vec(s, options.max_examples)?
     } else {
@@ -296,7 +329,10 @@ pub fn render_outlier_report_markdown(rep: &OutlierReport) -> String {
     out.push_str(&format!("- Rows profiled: **{}**\n", rep.row_count));
     out.push_str(&format!("- Outliers: **{}**\n\n", rep.outlier_count));
     out.push_str("### Stats\n\n");
-    out.push_str(&format!("- Method: `{}`\n", format!("{:?}", rep.stats.method)));
+    out.push_str(&format!(
+        "- Method: `{}`\n",
+        format!("{:?}", rep.stats.method)
+    ));
     if let Some(v) = rep.stats.mean {
         out.push_str(&format!("- mean: `{v:.6}`\n"));
     }
@@ -324,7 +360,9 @@ pub fn render_outlier_report_markdown(rep: &OutlierReport) -> String {
 fn read_f64(df: &polars::prelude::DataFrame, name: &str) -> IngestionResult<Option<f64>> {
     let col = df
         .column(name)
-        .map_err(|e| crate::ingestion::polars_bridge::polars_error_to_ingestion("missing stats column", e))?
+        .map_err(|e| {
+            crate::ingestion::polars_bridge::polars_error_to_ingestion("missing stats column", e)
+        })?
         .as_materialized_series();
     let av = col.get(0).map_err(|e| IngestionError::Engine {
         message: "failed to read outlier stat".to_string(),
@@ -341,7 +379,7 @@ fn read_f64(df: &polars::prelude::DataFrame, name: &str) -> IngestionResult<Opti
         other => {
             return Err(IngestionError::SchemaMismatch {
                 message: format!("expected numeric stat value, got {other}"),
-            })
+            });
         }
     })
 }
@@ -363,7 +401,7 @@ fn series_to_f64_vec(s: &Series, max: usize) -> IngestionResult<Vec<f64>> {
             other => {
                 return Err(IngestionError::SchemaMismatch {
                     message: format!("expected numeric outlier example, got {other}"),
-                })
+                });
             }
         }
     }
@@ -373,8 +411,8 @@ fn series_to_f64_vec(s: &Series, max: usize) -> IngestionResult<Vec<f64>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{DataType, Field, Schema};
     use crate::types::Value;
+    use crate::types::{DataType, Field, Schema};
 
     fn ds() -> DataSet {
         DataSet::new(
@@ -407,4 +445,3 @@ mod tests {
         assert!(md.contains("## Outlier report"));
     }
 }
-

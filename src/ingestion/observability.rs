@@ -46,12 +46,23 @@ pub trait IngestionObserver: Send + Sync {
     fn on_success(&self, _ctx: &IngestionContext, _stats: IngestionStats) {}
 
     /// Called when ingestion fails.
-    fn on_failure(&self, _ctx: &IngestionContext, _severity: IngestionSeverity, _error: &IngestionError) {}
+    fn on_failure(
+        &self,
+        _ctx: &IngestionContext,
+        _severity: IngestionSeverity,
+        _error: &IngestionError,
+    ) {
+    }
 
     /// Called when an ingestion failure meets an alert threshold.
     ///
     /// Default behavior forwards to [`Self::on_failure`].
-    fn on_alert(&self, ctx: &IngestionContext, severity: IngestionSeverity, error: &IngestionError) {
+    fn on_alert(
+        &self,
+        ctx: &IngestionContext,
+        severity: IngestionSeverity,
+        error: &IngestionError,
+    ) {
         self.on_failure(ctx, severity, error)
     }
 }
@@ -84,13 +95,23 @@ impl IngestionObserver for CompositeObserver {
         }
     }
 
-    fn on_failure(&self, ctx: &IngestionContext, severity: IngestionSeverity, error: &IngestionError) {
+    fn on_failure(
+        &self,
+        ctx: &IngestionContext,
+        severity: IngestionSeverity,
+        error: &IngestionError,
+    ) {
         for o in &self.observers {
             o.on_failure(ctx, severity, error);
         }
     }
 
-    fn on_alert(&self, ctx: &IngestionContext, severity: IngestionSeverity, error: &IngestionError) {
+    fn on_alert(
+        &self,
+        ctx: &IngestionContext,
+        severity: IngestionSeverity,
+        error: &IngestionError,
+    ) {
         for o in &self.observers {
             o.on_alert(ctx, severity, error);
         }
@@ -111,7 +132,12 @@ impl IngestionObserver for StdErrObserver {
         );
     }
 
-    fn on_failure(&self, ctx: &IngestionContext, severity: IngestionSeverity, error: &IngestionError) {
+    fn on_failure(
+        &self,
+        ctx: &IngestionContext,
+        severity: IngestionSeverity,
+        error: &IngestionError,
+    ) {
         eprintln!(
             "[ingest][{:?}] format={:?} path={} err={}",
             severity,
@@ -121,7 +147,12 @@ impl IngestionObserver for StdErrObserver {
         );
     }
 
-    fn on_alert(&self, ctx: &IngestionContext, severity: IngestionSeverity, error: &IngestionError) {
+    fn on_alert(
+        &self,
+        ctx: &IngestionContext,
+        severity: IngestionSeverity,
+        error: &IngestionError,
+    ) {
         eprintln!(
             "[ALERT][ingest][{:?}] format={:?} path={} err={}",
             severity,
@@ -152,7 +183,11 @@ impl FileObserver {
 
     fn append_line(&self, line: &str) {
         let _guard = self.lock.lock().ok();
-        if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&self.path) {
+        if let Ok(mut f) = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.path)
+        {
             let _ = writeln!(f, "{line}");
         }
     }
@@ -169,7 +204,12 @@ impl IngestionObserver for FileObserver {
         ));
     }
 
-    fn on_failure(&self, ctx: &IngestionContext, severity: IngestionSeverity, error: &IngestionError) {
+    fn on_failure(
+        &self,
+        ctx: &IngestionContext,
+        severity: IngestionSeverity,
+        error: &IngestionError,
+    ) {
         self.append_line(&format!(
             "{} fail severity={:?} format={:?} path={} err={}",
             unix_ts(),
@@ -180,7 +220,12 @@ impl IngestionObserver for FileObserver {
         ));
     }
 
-    fn on_alert(&self, ctx: &IngestionContext, severity: IngestionSeverity, error: &IngestionError) {
+    fn on_alert(
+        &self,
+        ctx: &IngestionContext,
+        severity: IngestionSeverity,
+        error: &IngestionError,
+    ) {
         self.append_line(&format!(
             "{} ALERT severity={:?} format={:?} path={} err={}",
             unix_ts(),
@@ -198,4 +243,3 @@ fn unix_ts() -> u64 {
         .unwrap_or_default()
         .as_secs()
 }
-

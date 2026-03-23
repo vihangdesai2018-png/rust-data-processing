@@ -154,41 +154,42 @@ Interop considerations:
   - feature-gated DB ingestion (document prerequisites — `README_DEV.md`, `API.md`)
 
 #### 2.2.3 Packaging + wheels
-- [ ] Use maturin to build wheels locally:
+- [x] Use maturin to build wheels locally:
   - `maturin develop` for local dev installs
   - `maturin build --release` for wheels
-- [ ] Consider `abi3` wheels (optional): reduces per-Python-version wheel builds but constrains API usage.
-- [ ] CI: GitHub Actions matrix build using `PyO3/maturin-action`
+- [x] Consider `abi3` wheels (optional): reduces per-Python-version wheel builds but constrains API usage. *(Documented in `How_TO_deploy.md` + `pyproject.toml` comment; not enabled.)*
+- [x] CI: GitHub Actions matrix build using `PyO3/maturin-action`
   - Linux manylinux wheels + macOS + Windows
-  - publish to PyPI on tagged releases
+  - publish to PyPI on tagged releases *(`.github/workflows/python_ci.yml`, `python_release.yml`; tags `v*`; secret `PYPI_API_TOKEN`)*
 
 #### 2.2.4 Versioning strategy
-- [ ] Keep Python package version aligned with Rust crate version for Phase 1a (simplest)
-- [ ] Document compatibility and feature flags (e.g., DB ingestion)
+- [x] Keep Python package version aligned with Rust crate version for Phase 1a (simplest)
+- [x] Document compatibility and feature flags (e.g., DB ingestion)
 
 ---
 
 ## 3) Documentation deliverables (Phase 1a)
-- [ ] Update `Planning/How_TO_deploy.md` to match maturin/PyO3 packaging (remove `setup.py` guidance)
-- [ ] Add “Python quickstart” section in README (install, ingest, profile, validate)
-- [ ] Add a short “Release checklist” for both crates.io + PyPI
+- [x] Update `Planning/How_TO_deploy.md` to match maturin/PyO3 packaging (remove `setup.py` guidance)
+- [x] Add “Python quickstart” section in README (install, ingest, profile, validate)
+- [x] Add a short “Release checklist” for both crates.io + PyPI *(see `Planning/RELEASE_CHECKLIST.md`)*
 
 ---
 
 ## 4) GitHub Actions CI/CD (Phase 1a) + “small story” workflow
 
 ### Branching rule (applies to every story)
-- [ ] Create a **new branch per story** (small unit of work) and merge via PR to `main`.
-- [ ] Keep stories “1–2 hours” sized where possible (single workflow, single template, single doc update, etc.).
+- [x] Create a **new branch per story** (small unit of work) and merge via PR to `main`. *(Team norm; documented in `Planning/CI_DEPLOY_POLICY.md`.)*
+- [x] Keep stories “1–2 hours” sized where possible (single workflow, single template, single doc update, etc.). *(Same.)*
 
 ### Global CI research (shared prerequisite)
-- [ ] **(Research)** Decide what “deploy after merge to `main`” means safely for us:
+- [x] **(Research)** Decide what “deploy after merge to `main`” means safely for us:
   - crates.io **cannot** publish the same version twice; publishing on every merge will fail unless versions bump.
   - PyPI similarly requires version bumps (or unique build tags depending on strategy).
   - Outcome: document the chosen trigger policy (recommended options to evaluate):
-    - A) deploy on **tagged release** (safer, typical)
+    - A) deploy on **tagged release** (safer, typical) — **chosen**, with **tag commit must be on `origin/main`**
     - B) deploy on merge to `main` **only if** version changed and the registry doesn’t already contain it
-    - C) deploy on merge to `main` to a staging index (TestPyPI) + deploy to prod on tag
+    - C) deploy on merge to `main` to a staging index (TestPyPI) + deploy to prod on tag  
+  - *Deliverable:* **`Planning/CI_DEPLOY_POLICY.md`**
 
 ---
 
@@ -196,22 +197,22 @@ Interop considerations:
 
 Goal: after merging a PR into `main`, have a predictable pipeline that builds/tests and (per policy) publishes the Rust crate.
 
-- [ ] **(Research)** crates.io publish automation constraints:
-  - how to detect “version already published”
-  - required token scopes and best practices for storing token in GitHub Secrets
-  - whether we should enforce “tag required” for publish even if merge-to-main builds happen
-- [ ] **Story**: Add `.github/workflows/rust_ci.yml` (build + test only)
-  - triggers: PRs to `main` + pushes to `main`
-  - steps: `cargo fmt --check`, `cargo clippy`, `cargo test` (include doctests if used), `cargo test --all-features` if appropriate
-- [ ] **Story**: Add `.github/workflows/rust_release.yml` (deploy)
-  - trigger: push to `main` (post-merge) **or** tag (depends on research decision)
-  - steps: `cargo publish --dry-run`, then `cargo publish`
-  - guardrails: fail fast if version not bumped / already published (define mechanism in the research story)
-- [ ] **Story**: Add a “release checklist” doc snippet (README or Planning) describing:
+- [x] **(Research)** crates.io publish automation constraints:
+  - how to detect “version already published” — **`cargo publish` fails if version exists**; no extra probe in Phase 1a
+  - required token scopes and best practices for storing token in GitHub Secrets — **`CRATES_IO_TOKEN`**; see **`How_TO_deploy.md`**
+  - whether we should enforce “tag required” for publish even if merge-to-main builds happen — **yes: publish only on tag `v*` + main ancestry guard**
+- [x] **Story**: Add `.github/workflows/rust_ci.yml` (build + test only)
+  - triggers: PRs + pushes to `main`
+  - steps: `cargo fmt --check`, `cargo clippy`, `cargo test` (incl. doctests), **ubuntu job:** `cargo test --features ci_expanded` (`db_connectorx` omitted — OpenSSL/Perl on Windows; run `--features db_connectorx` locally when tooling is ready)
+- [x] **Story**: Add `.github/workflows/rust_release.yml` (deploy)
+  - trigger: push tag **`v*`** with **main** ancestry check *(not bare merge-to-main publish)*
+  - steps: **`cargo publish --dry-run`**, then **`cargo publish`**
+  - guardrails: **registry rejects duplicate version**; tag off-`main` rejected by workflow
+- [x] **Story**: Add a “release checklist” doc snippet (README or Planning) describing:
   - bump version
   - merge PR
   - verify CI green
-  - publish performed by CI (or by tag)
+  - publish performed by CI (or by tag) — **`Planning/RELEASE_CHECKLIST.md`**
 
 ---
 

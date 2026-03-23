@@ -53,10 +53,7 @@ pub fn feature_wise_mean_std(
 
     let mut out = Vec::with_capacity(meta.len());
     for ((name, _, _), wf) in meta.into_iter().zip(w) {
-        let mean = wf
-            .mean()
-            .map(Value::Float64)
-            .unwrap_or(Value::Null);
+        let mean = wf.mean().map(Value::Float64).unwrap_or(Value::Null);
         let std_dev = wf
             .variance(std_kind)
             .map(|v| Value::Float64(v.sqrt()))
@@ -220,7 +217,10 @@ mod tests {
             Field::new("a", DataType::Int64),
             Field::new("t", DataType::Utf8),
         ]);
-        let ds = DataSet::new(schema, vec![vec![Value::Int64(1), Value::Utf8("x".to_string())]]);
+        let ds = DataSet::new(
+            schema,
+            vec![vec![Value::Int64(1), Value::Utf8("x".to_string())]],
+        );
         assert!(feature_wise_mean_std(&ds, &["missing"], VarianceKind::Sample).is_none());
         assert!(feature_wise_mean_std(&ds, &["a", "t"], VarianceKind::Sample).is_none());
     }
@@ -237,14 +237,8 @@ mod tests {
                 vec![Value::Null],
             ],
         );
-        assert_eq!(
-            arg_max_row(&ds, "x"),
-            Some(Some((1, Value::Int64(3))))
-        );
-        assert_eq!(
-            arg_min_row(&ds, "x"),
-            Some(Some((0, Value::Int64(1))))
-        );
+        assert_eq!(arg_max_row(&ds, "x"), Some(Some((1, Value::Int64(3)))));
+        assert_eq!(arg_min_row(&ds, "x"), Some(Some((0, Value::Int64(1)))));
     }
 
     #[test]

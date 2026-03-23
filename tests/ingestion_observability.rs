@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use rust_data_processing::ingestion::{
-    ingest_from_path, IngestionFormat, IngestionObserver, IngestionOptions, IngestionSeverity,
+    IngestionFormat, IngestionObserver, IngestionOptions, IngestionSeverity, ingest_from_path,
 };
 use rust_data_processing::types::{DataType, Field, Schema};
 
@@ -50,7 +50,12 @@ fn observer_receives_failure_and_alert_on_critical_io_error() {
     };
 
     // Missing file -> Io error -> Critical
-    let _ = ingest_from_path("tests/fixtures/does_not_exist.csv", &schema_id_only(), &opts).unwrap_err();
+    let _ = ingest_from_path(
+        "tests/fixtures/does_not_exist.csv",
+        &schema_id_only(),
+        &opts,
+    )
+    .unwrap_err();
 
     let failures = obs.failures.lock().unwrap().clone();
     let alerts = obs.alerts.lock().unwrap().clone();
@@ -69,10 +74,10 @@ fn observer_receives_failure_without_alert_for_non_critical_error() {
     };
 
     // Schema mismatch -> Error severity (not Critical) -> should not alert
-    let _ = ingest_from_path("tests/fixtures/people.csv", &schema_missing_col(), &opts).unwrap_err();
+    let _ =
+        ingest_from_path("tests/fixtures/people.csv", &schema_missing_col(), &opts).unwrap_err();
 
     let failures = obs.failures.lock().unwrap().clone();
     assert_eq!(failures, vec![IngestionSeverity::Error]);
     assert!(obs.alerts.lock().unwrap().is_empty());
 }
-

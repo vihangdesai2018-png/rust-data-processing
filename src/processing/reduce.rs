@@ -263,7 +263,7 @@ fn reduce_numeric_typed(
 
 #[cfg(test)]
 mod tests {
-    use super::{reduce, ReduceOp, VarianceKind};
+    use super::{ReduceOp, VarianceKind, reduce};
     use crate::types::{DataSet, DataType, Field, Schema, Value};
 
     fn numeric_dataset_with_nulls() -> DataSet {
@@ -324,18 +324,9 @@ mod tests {
     fn reduce_numeric_returns_null_if_all_values_null() {
         let schema = Schema::new(vec![Field::new("score", DataType::Float64)]);
         let ds = DataSet::new(schema, vec![vec![Value::Null], vec![Value::Null]]);
-        assert_eq!(
-            reduce(&ds, "score", ReduceOp::Sum),
-            Some(Value::Null)
-        );
-        assert_eq!(
-            reduce(&ds, "score", ReduceOp::Min),
-            Some(Value::Null)
-        );
-        assert_eq!(
-            reduce(&ds, "score", ReduceOp::Max),
-            Some(Value::Null)
-        );
+        assert_eq!(reduce(&ds, "score", ReduceOp::Sum), Some(Value::Null));
+        assert_eq!(reduce(&ds, "score", ReduceOp::Min), Some(Value::Null));
+        assert_eq!(reduce(&ds, "score", ReduceOp::Max), Some(Value::Null));
         assert_eq!(reduce(&ds, "score", ReduceOp::Mean), Some(Value::Null));
         assert_eq!(
             reduce(&ds, "score", ReduceOp::Variance(VarianceKind::Population)),
@@ -488,10 +479,7 @@ mod tests {
             reduce(&ds, "nope", ReduceOp::Variance(VarianceKind::Sample)),
             None
         );
-        assert_eq!(
-            reduce(&ds, "nope", ReduceOp::CountDistinctNonNull),
-            None
-        );
+        assert_eq!(reduce(&ds, "nope", ReduceOp::CountDistinctNonNull), None);
     }
 
     #[test]

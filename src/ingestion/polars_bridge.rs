@@ -160,7 +160,8 @@ pub(crate) fn dataset_to_dataframe(ds: &DataSet) -> IngestionResult<DataFrame> {
         }
     }
 
-    DataFrame::new(nrows, cols).map_err(|e| polars_error_to_ingestion("failed to build polars DataFrame", e))
+    DataFrame::new(nrows, cols)
+        .map_err(|e| polars_error_to_ingestion("failed to build polars DataFrame", e))
 }
 
 pub(crate) fn dataframe_to_dataset(
@@ -240,4 +241,3 @@ pub(crate) fn dataframe_to_dataset(
 
     Ok(DataSet::new(schema.clone(), out_rows))
 }
-

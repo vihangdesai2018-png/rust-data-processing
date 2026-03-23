@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use calamine::{open_workbook_auto, Data, Reader};
+use calamine::{Data, Reader, open_workbook_auto};
 
 use crate::error::{IngestionError, IngestionResult};
 use crate::types::{DataSet, DataType, Schema, Value};
@@ -60,7 +60,10 @@ pub fn ingest_excel_workbook_from_path(
 /// - Column names come from the first non-empty row (same as ingestion).
 /// - Types are inferred as one of: Bool / Int64 / Float64 / Utf8
 /// - Mixed-type columns fall back to Utf8.
-pub fn infer_excel_schema_from_path(path: impl AsRef<Path>, sheet_name: Option<&str>) -> IngestionResult<Schema> {
+pub fn infer_excel_schema_from_path(
+    path: impl AsRef<Path>,
+    sheet_name: Option<&str>,
+) -> IngestionResult<Schema> {
     let sheets: Option<Vec<&str>> = sheet_name.map(|s| vec![s]);
     infer_excel_schema_workbook_from_path(path, sheets.as_deref())
 }
@@ -95,8 +98,8 @@ fn ingest_sheet_range(
     range: &calamine::Range<Data>,
     schema: &Schema,
 ) -> IngestionResult<Vec<Vec<Value>>> {
-    let (header_row_idx, col_idxs, header_cells) = build_header_projection(range, schema)
-        .map_err(|e| wrap_schema_err_with_sheet(sheet, e))?;
+    let (header_row_idx, col_idxs, header_cells) =
+        build_header_projection(range, schema).map_err(|e| wrap_schema_err_with_sheet(sheet, e))?;
 
     let mut rows: Vec<Vec<Value>> = Vec::new();
     for (idx0, row) in range.rows().enumerate() {
@@ -121,7 +124,10 @@ fn ingest_sheet_range(
     Ok(rows)
 }
 
-fn infer_schema_from_sheet_range(sheet: &str, range: &calamine::Range<Data>) -> IngestionResult<Schema> {
+fn infer_schema_from_sheet_range(
+    sheet: &str,
+    range: &calamine::Range<Data>,
+) -> IngestionResult<Schema> {
     let (header_row_idx, header_cells) = find_header_row(range)?;
 
     // Initialize per-column inference state.
@@ -206,7 +212,9 @@ impl InferState {
             (InferState::Bool, InferState::Bool) => InferState::Bool,
             (InferState::Int, InferState::Int) => InferState::Int,
             (InferState::Float, InferState::Float) => InferState::Float,
-            (InferState::Int, InferState::Float) | (InferState::Float, InferState::Int) => InferState::Float,
+            (InferState::Int, InferState::Float) | (InferState::Float, InferState::Int) => {
+                InferState::Float
+            }
             // Any other mixing falls back to Utf8.
             _ => InferState::Utf8,
         };
@@ -291,7 +299,12 @@ fn cell_to_header_string(c: &Data) -> String {
     }
 }
 
-fn convert_cell(row: usize, column: &str, data_type: &DataType, c: &Data) -> IngestionResult<Value> {
+fn convert_cell(
+    row: usize,
+    column: &str,
+    data_type: &DataType,
+    c: &Data,
+) -> IngestionResult<Value> {
     if matches!(c, Data::Empty) {
         return Ok(Value::Null);
     }
@@ -354,12 +367,15 @@ fn parse_i64_cell(row: usize, column: &str, c: &Data) -> IngestionResult<i64> {
                 })
             }
         }
-        Data::String(s) => s.trim().parse::<i64>().map_err(|e| IngestionError::ParseError {
-            row,
-            column: column.to_string(),
-            raw: s.clone(),
-            message: e.to_string(),
-        }),
+        Data::String(s) => s
+            .trim()
+            .parse::<i64>()
+            .map_err(|e| IngestionError::ParseError {
+                row,
+                column: column.to_string(),
+                raw: s.clone(),
+                message: e.to_string(),
+            }),
         _ => Err(IngestionError::ParseError {
             row,
             column: column.to_string(),
@@ -373,12 +389,15 @@ fn parse_f64_cell(row: usize, column: &str, c: &Data) -> IngestionResult<f64> {
     match c {
         Data::Float(f) => Ok(*f),
         Data::Int(i) => Ok(*i as f64),
-        Data::String(s) => s.trim().parse::<f64>().map_err(|e| IngestionError::ParseError {
-            row,
-            column: column.to_string(),
-            raw: s.clone(),
-            message: e.to_string(),
-        }),
+        Data::String(s) => s
+            .trim()
+            .parse::<f64>()
+            .map_err(|e| IngestionError::ParseError {
+                row,
+                column: column.to_string(),
+                raw: s.clone(),
+                message: e.to_string(),
+            }),
         _ => Err(IngestionError::ParseError {
             row,
             column: column.to_string(),
@@ -387,4 +406,3 @@ fn parse_f64_cell(row: usize, column: &str, c: &Data) -> IngestionResult<f64> {
         }),
     }
 }
-

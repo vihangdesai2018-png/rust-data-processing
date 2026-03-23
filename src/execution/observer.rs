@@ -1,6 +1,6 @@
 use std::fmt;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 use crate::processing::ReduceOp;
@@ -10,11 +10,23 @@ use crate::types::Value;
 #[derive(Debug, Clone)]
 pub enum ExecutionEvent {
     RunStarted,
-    ThrottleWaited { duration: Duration },
-    ChunkStarted { start_row: usize, row_count: usize },
-    ChunkFinished { output_rows: usize },
-    ReduceStarted { column: String, op: ReduceOp },
-    ReduceFinished { result: Option<Value> },
+    ThrottleWaited {
+        duration: Duration,
+    },
+    ChunkStarted {
+        start_row: usize,
+        row_count: usize,
+    },
+    ChunkFinished {
+        output_rows: usize,
+    },
+    ReduceStarted {
+        column: String,
+        op: ReduceOp,
+    },
+    ReduceFinished {
+        result: Option<Value>,
+    },
     RunFinished {
         elapsed: Duration,
         metrics: ExecutionMetricsSnapshot,
@@ -82,8 +94,10 @@ impl ExecutionMetrics {
     }
 
     pub fn end_run(&self, elapsed: Duration) {
-        self.elapsed_ns
-            .store(elapsed.as_nanos().min(u64::MAX as u128) as u64, Ordering::SeqCst);
+        self.elapsed_ns.store(
+            elapsed.as_nanos().min(u64::MAX as u128) as u64,
+            Ordering::SeqCst,
+        );
     }
 
     pub fn on_row_processed(&self) {
@@ -139,7 +153,8 @@ fn update_max_usize(dst: &AtomicUsize, now: usize) {
         if now <= cur {
             break;
         }
-        if dst.compare_exchange(cur, now, Ordering::SeqCst, Ordering::SeqCst)
+        if dst
+            .compare_exchange(cur, now, Ordering::SeqCst, Ordering::SeqCst)
             .is_ok()
         {
             break;
@@ -174,4 +189,3 @@ impl fmt::Display for ExecutionMetricsSnapshot {
         )
     }
 }
-

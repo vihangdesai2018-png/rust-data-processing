@@ -1,51 +1,98 @@
-# Release checklist (Rust crate → crates.io)
+# Release checklist (crates.io + PyPI)
 
-Use this for **§2.1** of `PHASE1A_PLAN.md`. Python / PyPI is **§2.2** (separate).
+Use this when shipping **both** the Rust crate and the **Python** package (`python-wrapper/`). For Rust-only or Python-only hotfixes, follow the relevant sections only.
 
-## Before the first (or any) publish
+## 1) Version alignment (do this first)
 
-1. **Version** — Bump `version` in `Cargo.toml` (SemVer). For breaking API changes, bump **minor** (0.x) or **major** (1.x+) per your policy.
-2. **Changelog** — Add a section under `CHANGELOG.md` for the new version (see [Keep a Changelog](https://keepachangelog.com/)).
-3. **CI green** — `cargo fmt --check`, `cargo clippy`, `cargo test`, `cargo test --doc` (and any feature matrices you care about, e.g. `--all-features` if applicable).
-4. **Dry run** — From the repo root:
+Bump **all** of these to the **same** SemVer (e.g. `0.2.0`):
 
-   ```bash
-   cargo publish --dry-run
-   ```
+| File | Field |
+|------|--------|
+| **`Cargo.toml`** (repo root) | `[package] version` |
+| **`python-wrapper/pyproject.toml`** | `[project] version` |
+| **`python-wrapper/Cargo.toml`** | `[package] version` |
 
-   Fix any packaging errors (missing files, invalid `license` / `categories`, oversized crate, etc.).
+PyPI uses **`pyproject.toml`** as the distribution version; the extension crate version should match for maintainability.
 
-5. **Login** (one-time per machine):
+## 2) Changelog + CI
 
-   ```bash
-   cargo login <CRATES_IO_TOKEN>
-   ```
+1. Add a section for the new version in **`CHANGELOG.md`** ([Keep a Changelog](https://keepachangelog.com/)).
+2. Open a PR; ensure **GitHub Actions** are green:
+   - **`Rust CI`** (`.github/workflows/rust_ci.yml` — fmt, clippy, tests, ubuntu `--features ci_expanded`)
+   - **`Python wrapper CI`** (maturin + pytest)
+3. Merge to **`main`**.
 
-## Publish
+## 3) Publish Rust crate (crates.io)
+
+**Preferred:** after merging to **`main`**, push tag **`v*`** — **`rust_release.yml`** publishes via **`CRATES_IO_TOKEN`**.
+
+**Manual alternative** (from repo root, after merge):
 
 ```bash
+cargo fmt --check
+cargo clippy -- -D warnings
+cargo test
+cargo publish --dry-run
 cargo publish
 ```
 
-crates.io does not allow republishing the same version; if this fails with “already uploaded”, bump the version and repeat.
+`cargo publish` fails if that version already exists — bump and repeat. If you use **CI** for this version, do not also run **`cargo publish`** locally.
 
-## After publish
+## 4) Publish Python package (PyPI)
 
-1. **Git tag** — Tag the commit that matches the published version, e.g. `v0.1.0`:
+### One-time setup (GitHub secrets)
+
+Add **two** repository secrets under **Settings → Secrets and variables → Actions** (step-by-step: **`Planning/How_TO_deploy.md`** § *GitHub: add secrets for crates.io and PyPI*):
+
+| Secret name | Used by | Created at |
+|-------------|---------|------------|
+| **`CRATES_IO_TOKEN`** | **`.github/workflows/rust_release.yml`** | [crates.io](https://crates.io) → account → API tokens |
+| **`PYPI_API_TOKEN`** | **`.github/workflows/python_release.yml`** | [pypi.org](https://pypi.org) → account → API tokens |
+
+### On each release (CI publish — recommended)
+
+Use **one** flow: merge to **`main`**, then push **`v*`** from **`main`**. Do **not** also `cargo publish` locally for the same version, or the GitHub job will fail with “already uploaded”.
+
+1. Confirm **`python-wrapper/pyproject.toml`** version matches the Rust crate (step 1).
+2. Merge your release PR into **`main`** and ensure CI is green.
+3. On **`main`**, tag the merge commit and push the tag:
 
    ```bash
-   git tag -a v0.1.0 -m "Release v0.1.0"
-   git push origin v0.1.0
+   git fetch origin main
+   git checkout main && git pull origin main
+   git tag -a v0.2.0 -m "Release v0.2.0"
+   git push origin v0.2.0
    ```
 
-2. **GitHub Release** — Create a release from that tag and paste the relevant `CHANGELOG.md` section (or link to the file).
+4. **Actions** runs:
+   - **`rust_release.yml`** — verifies the tag is on **`origin/main`**, then **`cargo publish --locked`**.
+   - **`python_release.yml`** — same guard, then builds wheels and uploads to **PyPI**.
 
-3. **docs.rs** — Builds automatically for published crates; ensure `README.md` and public docs are accurate.
+Tags pointing at commits **not** on **`main`** are rejected (no publish).
 
-## Crate metadata (maintainers)
+### Manual `cargo publish` (optional)
 
-Canonical fields live in **`Cargo.toml`**: `description`, `license`, `repository`, `readme`, `keywords`, `categories`, `rust-version`.
+If you publish the Rust crate from your machine instead of **`rust_release.yml`**, skip pushing a tag until you are ready, or disable that workflow temporarily — avoid double-publishing the same version.
 
-License files: **`LICENSE-MIT`**, **`LICENSE-APACHE`** (dual **MIT OR Apache-2.0**).
+### Local dry run (optional)
 
-More detail: `How_TO_deploy.md` and `API.md`.
+```bash
+cd python-wrapper
+uv run maturin build --release -o dist --find-interpreter --sdist
+# Inspect python-wrapper/dist/*.whl and .tar.gz
+```
+
+### Custom wheels (optional)
+
+- **DB ingestion**: rebuild with **`maturin build --features db`** (see **`python-wrapper/README_DEV.md`**). Default CI wheels do **not** enable **`db`** unless you change **`[tool.maturin]`** / workflow args.
+
+## 5) After publish
+
+1. **GitHub Releases** — create a release for tag **`vX.Y.Z`**; paste **`CHANGELOG`** notes.
+2. **docs.rs** — updates automatically for the published Rust version.
+3. **PyPI** — verify the new version appears and `pip install rust-data-processing==X.Y.Z` works.
+
+## Reference
+
+- **`Planning/How_TO_deploy.md`** — packaging details, CI matrix, **`abi3`** note, feature flags.
+- **`python-wrapper/PARITY.md`** — Rust ↔ Python API matrix.

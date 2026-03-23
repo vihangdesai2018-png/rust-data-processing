@@ -53,7 +53,45 @@ Canonical checklist lives in `Planning/PHASE1_PLAN.md`; this section is the READ
 
 ## Python bindings
 
-Bindings are developed under **`python-wrapper/`** using **PyO3**, **maturin**, and **uv** (see `python-wrapper/README.md`, `python-wrapper/API.md`, and `python-wrapper/README_DEV.md`). The native module calls into this crate; Polars and other engine details stay on the Rust side.
+Bindings live under **`python-wrapper/`** (**PyO3** + **maturin** + **uv**). User-facing docs: **`python-wrapper/README.md`**, **`python-wrapper/API.md`**, **`python-wrapper/README_DEV.md`**. The native module calls this crate; Polars stays on the Rust side.
+
+### Python quickstart
+
+**From a checkout** (Rust + [uv](https://docs.astral.sh/uv/) required):
+
+```bash
+cd python-wrapper
+uv sync --group dev
+uv run maturin develop --release
+```
+
+```python
+import rust_data_processing as rdp
+
+schema = [
+    {"name": "id", "data_type": "int64"},
+    {"name": "name", "data_type": "utf8"},
+]
+ds = rdp.ingest_from_path("tests/fixtures/people.csv", schema, {"format": "csv"})
+print("rows", ds.row_count())
+
+report = rdp.profile_dataset(ds, {"head_rows": 50, "quantiles": [0.5]})
+print("profile rows sampled", report["row_count"])
+
+validation = rdp.validate_dataset(
+    ds,
+    {"checks": [{"kind": "not_null", "column": "id", "severity": "error"}]},
+)
+print("checks", validation["summary"]["total_checks"])
+```
+
+**From PyPI** (after you publish a release — see **`Planning/RELEASE_CHECKLIST.md`**):
+
+```bash
+pip install rust-data-processing
+```
+
+Use the same `import rust_data_processing as rdp` pattern; point `ingest_from_path` at your own CSV/JSON/Parquet files and schema.
 
 ## Quick start (library usage)
 
