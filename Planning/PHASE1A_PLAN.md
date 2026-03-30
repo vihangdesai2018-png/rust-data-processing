@@ -241,22 +241,21 @@ Goal: after merging a PR into `main`, build wheels across OSes and (per policy) 
 ## 7) Bug reporting + triage plan (so users can report issues post-release)
 
 ### GitHub bug reporting stories
-- [ ] **(Research)** Decide between GitHub Issue Templates vs Issue Forms (YAML).
+- [x] **(Research)** Decide between GitHub Issue Templates vs Issue Forms (YAML).
   - Issue Forms are YAML under `.github/ISSUE_TEMPLATE/` and collect structured fields (repro steps, versions, logs).
-  - Outcome: choose the format and define required fields for a high-signal bug report.
-- [ ] **Story**: Add a bug report template/form:
+  - **Outcome:** **Issue Forms (YAML)** — see `.github/ISSUE_TEMPLATE/bug_report.yml` and `feature_request.yml`.
+- [x] **Story**: Add a bug report template/form:
   - required: “what happened”, “expected”, “steps to reproduce”, “version”, “OS”, “dataset size”, “feature flags enabled”, “logs/stack trace”
   - auto-label: `bug`
-- [ ] **Story**: Add a feature request template/form (label `enhancement`)
-- [ ] **Story**: Add `SECURITY.md` with security reporting instructions (even if minimal)
-- [ ] **Story**: Add README section “Reporting bugs” pointing to GitHub Issues and describing what info to include
+- [x] **Story**: Add a feature request template/form (label `enhancement`)
+- [x] **Story**: Add `SECURITY.md` with security reporting instructions (even if minimal)
+- [x] **Story**: Add README section “Reporting bugs” pointing to GitHub Issues and describing what info to include
+  - Extended with **`Planning/ISSUE_TRIAGE.md`**, **`Planning/DOCUMENTATION.md`**, **`CONTRIBUTING.md`**, combined **rustdoc + pdoc** CI (`.github/workflows/docs.yml`) and README **Documentation** links.
 
 ### “Top 10 bug reports” research story (for prioritization)
-- [ ] **(Research)** Define how we will compute “top 10 bugs” for our library:
+- [x] **(Research)** Define how we will compute “top 10 bugs” for our library:
   - Option A: GitHub Issue search sorted by **most comments** for `label:bug`
   - Option B: GitHub GraphQL/REST to rank by **reactions** (thumbs up / total reactions)
   - Option C: include external signals (if any) such as CVEs / advisory feeds (future)
-  - Deliverable: a repeatable query (or small script later) and a lightweight triage process:
-    - weekly review cadence
-    - how to tag: `bug`, `needs-triage`, `confirmed`, `help wanted`
+  - **Deliverable:** documented in **`Planning/ISSUE_TRIAGE.md`**: primary bookmarked query `is:issue is:open label:bug sort:reactions-+1-desc`, optional `sort:comments-desc`, weekly triage cadence, labels `bug`, `needs-triage`, `confirmed`, `help wanted`. (Script/automation deferred.)
 

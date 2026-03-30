@@ -1,0 +1,44 @@
+name: Feature Request
+description: Suggest an idea or enhancement (labels: enhancement).
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the problem you are solving and how this feature would help.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What workflow is painful or impossible today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: APIs, behavior, or examples of how you would like this to work.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface area
+      options:
+        - Rust crate only
+        - Python bindings only
+        - Both
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Optional—workarounds, other libraries, or phased designs.

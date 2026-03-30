@@ -1,0 +1,96 @@
+# Build Rust (rustdoc) + Python (pdoc) documentation.
+# On push to main: deploy the combined site to GitHub Pages.
+# On pull requests: verify both doc builds without deploying.
+
+name: Documentation
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build documentation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-targets: "true"
+
+      - name: cargo doc (rustdoc)
+        run: cargo doc --no-deps --locked
+
+      - name: setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Python API docs (pdoc)
+        working-directory: python-wrapper
+        run: |
+          set -euo pipefail
+          uv sync --group dev
+          uv run maturin develop --release
+          uv run pdoc -d google -o "${GITHUB_WORKSPACE}/site/python" rust_data_processing
+
+      - name: Assemble site
+        run: |
+          set -euo pipefail
+          mkdir -p site/rust
+          cp -a target/doc/. site/rust/
+          cp -f docs/landing/index.html site/index.html
+
+      - name: Upload docs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-site
+          path: site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download docs artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docs-site
+          path: site
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -20,11 +20,12 @@ PyPI uses **`pyproject.toml`** as the distribution version; the extension crate 
 2. Open a PR; ensure **GitHub Actions** are green:
    - **`Rust CI`** (`.github/workflows/rust_ci.yml` — fmt, clippy, tests, ubuntu `--features ci_expanded`)
    - **`Python wrapper CI`** (maturin + pytest)
+   - **`Documentation`** (`.github/workflows/docs.yml` — rustdoc + pdoc build; on `main`, refreshes GitHub Pages if configured — see [`Planning/DOCUMENTATION.md`](DOCUMENTATION.md))
 3. Merge to **`main`**.
 
 ## 3) Publish Rust crate (crates.io)
 
-**Preferred:** after merging to **`main`**, push tag **`v*`** — **`rust_release.yml`** publishes via **`CRATES_IO_TOKEN`**.
+**Preferred:** after merging to **`main`**, push tag **`v*`** (use **`./scripts/release_tag.ps1 X.Y.Z`** from §4) — **`rust_release.yml`** publishes via **`CRATES_IO_TOKEN`**.
 
 **Manual alternative** (from repo root, after merge):
 
@@ -51,15 +52,25 @@ Add **two** repository secrets under **Settings → Secrets and variables → Ac
 
 ### On each release (CI publish — recommended)
 
-Use **one** flow: merge to **`main`**, then push **`v*`** from **`main`**. Do **not** also `cargo publish` locally for the same version, or the GitHub job will fail with “already uploaded”.
+Releases are **not** automatic on every merge: you choose when to cut a tag after **`main`** already contains the version bump and green CI.
+
+Use **one** flow: complete steps **1–2** (versions + changelog + merge to **`main`**), then run the release script (or the raw git commands below). Do **not** also `cargo publish` locally for the same version, or the GitHub job will fail with “already uploaded”.
 
 1. Confirm **`python-wrapper/pyproject.toml`** version matches the Rust crate (step 1).
-2. Merge your release PR into **`main`** and ensure CI is green.
-3. On **`main`**, tag the merge commit and push the tag:
+2. Merge your release PR into **`main`** and ensure CI is green. Push **`main`** to **`origin`** so `HEAD` matches **`origin/main`**.
+3. From repo root, on **`main`**, create and push the version tag (script **verifies** the three package versions match the argument unless you pass **`-SkipVersionCheck`**):
+
+   ```powershell
+   ./scripts/release_tag.ps1 0.2.0
+   ```
+
+   Optional: **`-WhatIf`** to print the git commands without tagging; **`-AllowDirty`** if you intentionally have a dirty tree (not recommended).
+
+   Equivalent manual commands:
 
    ```bash
    git fetch origin main
-   git checkout main && git pull origin main
+   git checkout main && git pull --ff-only origin main
    git tag -a v0.2.0 -m "Release v0.2.0"
    git push origin v0.2.0
    ```

@@ -1,4 +1,5 @@
 /target
+/_site
 **/*.rs.bk
 HighLevelDevelopmentPlan.txt
 epcis_and_stories.txt

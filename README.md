@@ -5,7 +5,50 @@ validation + inference helpers, in-memory + parallel processing primitives, and 
 Phase 1 also targets profiling/validation/outlier-detection APIs and report formats, while keeping a small engine-agnostic public
 surface (SQL support is Polars-backed).
 
-- **API docs**: generate with `./scripts/build_docs.ps1` (see below)
+## Documentation (read the APIs online)
+
+| | Link |
+| --- | --- |
+| **Combined Rust + Python (main branch, HTML)** | [GitHub Pages — rust-data-processing](https://vihangdesai2018-png.github.io/rust-data-processing/) — *enable Pages → GitHub Actions in repo Settings if the site is not live yet; see [`Planning/DOCUMENTATION.md`](Planning/DOCUMENTATION.md).* |
+| **Rust crate on crates.io** | [docs.rs — rust-data-processing](https://docs.rs/rust-data-processing) *(populates after the first successful publish)* |
+| **Markdown API guides** | [`API.md`](API.md) (Rust); Python: [`python-wrapper/API.md`](python-wrapper/API.md) |
+
+**Examples (minimal):**
+
+```rust
+use rust_data_processing::ingestion::{ingest_from_path, IngestionOptions};
+use rust_data_processing::types::{DataType, Field, Schema};
+
+fn main() -> Result<(), rust_data_processing::IngestionError> {
+    let schema = Schema::new(vec![
+        Field::new("id", DataType::Int64),
+        Field::new("name", DataType::Utf8),
+    ]);
+    let ds = ingest_from_path("tests/fixtures/people.csv", &schema, &IngestionOptions::default())?;
+    println!("rows={}", ds.row_count());
+    Ok(())
+}
+```
+
+```python
+import rust_data_processing as rdp
+
+schema = [
+    {"name": "id", "data_type": "int64"},
+    {"name": "name", "data_type": "utf8"},
+]
+ds = rdp.ingest_from_path("tests/fixtures/people.csv", schema, {"format": "csv"})
+print("rows", ds.row_count())
+```
+
+Generate the same HTML as CI locally: `./scripts/build_docs.ps1` (Rust only) or `./scripts/build_docs.ps1 -All` (Rust + Python → `_site/python/`). Maintainer notes: [`Planning/DOCUMENTATION.md`](Planning/DOCUMENTATION.md).
+
+## Reporting bugs
+
+- Open a **[GitHub Issue](https://github.com/vihangdesai2018-png/rust-data-processing/issues)** and use **Bug Report** or **Feature Request** so we get version, OS, and repro steps.
+- **Security:** do not file publicly — read [`SECURITY.md`](SECURITY.md).
+- How we triage and prioritize: [`Planning/ISSUE_TRIAGE.md`](Planning/ISSUE_TRIAGE.md).
+
 - **Status**: library APIs are in `src/lib.rs`; the binary (`src/main.rs`) is currently just a placeholder.
 - **Developer guide**: see `README_DEV.md` (module map, workflows, conventions)
 - **Benchmark snapshot (pipeline bench)**: on this repo (Windows, Criterion), `filter → map → reduce(sum)`:
@@ -837,12 +880,13 @@ rust-data-processing = { path = ".", default-features = false }
 ./scripts/run_unit_tests.ps1
 ```
 
-## Generate API docs (Rustdoc)
+## Generate API docs (Rustdoc + optional Python pdoc)
 
-Rust has built-in API documentation via **Rustdoc**.
+Rust uses **Rustdoc**; Python bindings use **pdoc** (same as CI). See [Documentation](#documentation-read-the-apis-online) for published links.
 
 ```powershell
-./scripts/build_docs.ps1
+./scripts/build_docs.ps1              # Rust only → target/doc/
+./scripts/build_docs.ps1 -All         # Rust + Python → target/doc/ and _site/python/
 ```
 
 ## Deep tests (large/realistic fixtures)

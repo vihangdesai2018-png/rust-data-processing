@@ -23,6 +23,7 @@ classifiers = [
 
 [project.urls]
 Repository = "https://github.com/vihangdesai2018-png/rust-data-processing"
+Documentation = "https://vihangdesai2018-png.github.io/rust-data-processing/"
 
 [dependency-groups]
 dev = [
@@ -30,6 +31,7 @@ dev = [
     "pytest>=8",
     "pytest-benchmark>=4",
     "pyarrow>=15",
+    "pdoc>=14,<16",
 ]
 
 [tool.pytest.ini_options]

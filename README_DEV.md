@@ -5,6 +5,8 @@ and the Phase 1 tracker in `Planning/PHASE1_PLAN.md`.
 
 ## Quick navigation
 
+- **Published documentation (CI + Pages)**: `Planning/DOCUMENTATION.md` (rustdoc + pdoc, GitHub Pages, local `./scripts/build_docs.ps1 -All`)
+- **Issue triage (labels, popular-bug query)**: `Planning/ISSUE_TRIAGE.md`
 - **User-facing examples**: root `README.md` (cookbook + map/reduce aggregates); `API.md` (full aggregate / `group_by` snippets)
 - **Reduce / aggregate semantics**: `Planning/REDUCE_AGG_SEMANTICS.md`
 - **Public API surface**: `src/lib.rs` (module exports + default-on `sql`)
