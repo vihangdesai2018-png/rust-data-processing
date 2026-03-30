@@ -12,15 +12,16 @@ mod semaphore;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use rayon::prelude::*;
 use rayon::ThreadPool;
 use rayon::ThreadPoolBuilder;
+use rayon::prelude::*;
 
-use crate::processing::{reduce, ReduceOp};
+use crate::processing::{ReduceOp, reduce};
 use crate::types::{DataSet, Value};
 
 pub use observer::{
-    ExecutionEvent, ExecutionMetrics, ExecutionMetricsSnapshot, ExecutionObserver, StdErrExecutionObserver,
+    ExecutionEvent, ExecutionMetrics, ExecutionMetricsSnapshot, ExecutionObserver,
+    StdErrExecutionObserver,
 };
 
 use semaphore::Semaphore;
@@ -44,7 +45,9 @@ pub struct ExecutionOptions {
 
 impl Default for ExecutionOptions {
     fn default() -> Self {
-        let n = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1);
+        let n = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(1);
         Self {
             num_threads: Some(n),
             chunk_size: 4_096,
@@ -79,7 +82,11 @@ impl ExecutionEngine {
 
         let n_threads = opts
             .num_threads
-            .unwrap_or_else(|| std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1))
+            .unwrap_or_else(|| {
+                std::thread::available_parallelism()
+                    .map(|n| n.get())
+                    .unwrap_or(1)
+            })
             .max(1);
 
         let pool = ThreadPoolBuilder::new()
@@ -111,10 +118,15 @@ impl ExecutionEngine {
     where
         F: Fn(&[Value]) -> bool + Send + Sync,
     {
-        self.pool.install(|| self.filter_parallel_impl(dataset, &predicate))
+        self.pool
+            .install(|| self.filter_parallel_impl(dataset, &predicate))
     }
 
-    fn filter_parallel_impl(&self, dataset: &DataSet, predicate: &(dyn Fn(&[Value]) -> bool + Send + Sync)) -> DataSet {
+    fn filter_parallel_impl(
+        &self,
+        dataset: &DataSet,
+        predicate: &(dyn Fn(&[Value]) -> bool + Send + Sync),
+    ) -> DataSet {
         let start = Instant::now();
         self.metrics.begin_run();
         self.emit(ExecutionEvent::RunStarted);
@@ -175,10 +187,15 @@ impl ExecutionEngine {
     where
         F: Fn(&[Value]) -> Vec<Value> + Send + Sync,
     {
-        self.pool.install(|| self.map_parallel_impl(dataset, &mapper))
+        self.pool
+            .install(|| self.map_parallel_impl(dataset, &mapper))
     }
 
-    fn map_parallel_impl(&self, dataset: &DataSet, mapper: &(dyn Fn(&[Value]) -> Vec<Value> + Send + Sync)) -> DataSet {
+    fn map_parallel_impl(
+        &self,
+        dataset: &DataSet,
+        mapper: &(dyn Fn(&[Value]) -> Vec<Value> + Send + Sync),
+    ) -> DataSet {
         let start = Instant::now();
         self.metrics.begin_run();
         self.emit(ExecutionEvent::RunStarted);
@@ -250,7 +267,9 @@ impl ExecutionEngine {
 
         let out = reduce(dataset, column, op);
 
-        self.emit(ExecutionEvent::ReduceFinished { result: out.clone() });
+        self.emit(ExecutionEvent::ReduceFinished {
+            result: out.clone(),
+        });
         self.metrics.end_run(start.elapsed());
         self.emit(ExecutionEvent::RunFinished {
             elapsed: start.elapsed(),
@@ -283,8 +302,8 @@ fn chunk_ranges(row_count: usize, chunk_size: usize) -> Vec<std::ops::Range<usiz
 #[cfg(test)]
 mod tests {
     use super::{ExecutionEngine, ExecutionOptions};
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
 
     use crate::execution::{ExecutionEvent, ExecutionObserver};
@@ -365,7 +384,8 @@ mod tests {
                 if now <= cur {
                     break;
                 }
-                if self.max_active_chunks
+                if self
+                    .max_active_chunks
                     .compare_exchange(cur, now, Ordering::SeqCst, Ordering::SeqCst)
                     .is_ok()
                 {
@@ -438,4 +458,3 @@ mod tests {
         assert!(snap.elapsed.is_some());
     }
 }
-

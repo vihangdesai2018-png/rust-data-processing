@@ -14,13 +14,19 @@ use super::polars_bridge::{dataframe_to_dataset, polars_error_to_ingestion};
 /// Notes:
 /// - Validates that all schema fields exist as columns
 /// - Delegates Parquet decoding to Polars, then converts into `DataSet`
-pub fn ingest_parquet_from_path(path: impl AsRef<Path>, schema: &Schema) -> IngestionResult<DataSet> {
+pub fn ingest_parquet_from_path(
+    path: impl AsRef<Path>,
+    schema: &Schema,
+) -> IngestionResult<DataSet> {
     let path = path.as_ref();
 
-    let df = LazyFrame::scan_parquet(path.to_string_lossy().as_ref().into(), ScanArgsParquet::default())
-        .map_err(|e| polars_error_to_ingestion("failed to read parquet with polars", e))?
-        .collect()
-        .map_err(|e| polars_error_to_ingestion("failed to collect parquet with polars", e))?;
+    let df = LazyFrame::scan_parquet(
+        path.to_string_lossy().as_ref().into(),
+        ScanArgsParquet::default(),
+    )
+    .map_err(|e| polars_error_to_ingestion("failed to read parquet with polars", e))?
+    .collect()
+    .map_err(|e| polars_error_to_ingestion("failed to collect parquet with polars", e))?;
 
     // Parquet: keep "type mismatch" strictness. If the physical/logical Parquet column type is
     // incompatible with the requested schema type (e.g. UTF8 string column for an Int64 field),
@@ -51,7 +57,10 @@ fn validate_parquet_column_types(df: &DataFrame, schema: &Schema) -> IngestionRe
     Ok(())
 }
 
-fn dtype_compatible_with_schema(schema_dtype: &DataType, polars_dtype: &polars::datatypes::DataType) -> bool {
+fn dtype_compatible_with_schema(
+    schema_dtype: &DataType,
+    polars_dtype: &polars::datatypes::DataType,
+) -> bool {
     use polars::datatypes::DataType as P;
 
     match schema_dtype {

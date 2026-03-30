@@ -1,11 +1,65 @@
 # rust-data-processing
 
-Rust library for ingesting common file formats (CSV / JSON / Parquet / Excel (feature-gated)) into an in-memory `DataSet`, with schema
-validation + inference helpers, in-memory + parallel processing primitives, and a Polars-backed DataFrame-centric pipeline API.
-Phase 1 also targets profiling/validation/outlier-detection APIs and report formats, while keeping a small engine-agnostic public
-surface (SQL support is Polars-backed).
+**Rust** crate and **Python** package for ingesting common file formats (CSV / JSON / Parquet / Excel (feature-gated)) into an in-memory `DataSet`, with schema validation + inference helpers, in-memory + parallel processing primitives, and a Polars-backed DataFrame-centric pipeline API. Phase 1 also targets profiling, validation, and outlier-detection APIs and report formats, while keeping a small engine-agnostic public surface (SQL support is Polars-backed). Use whichever binding fits your stack—the capabilities are the same under the hood.
 
-- **API docs**: generate with `./scripts/build_docs.ps1` (see below)
+## Documentation (read the APIs online)
+
+| | Link |
+| --- | --- |
+| **Combined Rust + Python (main branch, HTML)** | [GitHub Pages — rust-data-processing](https://vihangdesai2018-png.github.io/rust-data-processing/) — *enable Pages → GitHub Actions in repo Settings if the site is not live yet; see [`Planning/DOCUMENTATION.md`](Planning/DOCUMENTATION.md).* |
+| **Rust crate on crates.io** | [docs.rs — rust-data-processing](https://docs.rs/rust-data-processing) *(populates after the first successful publish)* |
+| **Markdown API guides** | [`API.md`](API.md) (Rust); Python: [`python-wrapper/API.md`](python-wrapper/API.md) |
+| **Rust examples (this repo)** | [`docs/rust/README.md`](docs/rust/README.md) — `Cargo.toml`, ingestion, DataFrame/SQL, cookbook, execution, benchmarks |
+| **Python examples (this repo)** | [`docs/python/README.md`](docs/python/README.md) — same topics via `rust_data_processing` |
+
+## Quick start (Python)
+
+```python
+import rust_data_processing as rdp
+
+schema = [
+    {"name": "id", "data_type": "int64"},
+    {"name": "name", "data_type": "utf8"},
+]
+ds = rdp.ingest_from_path("tests/fixtures/people.csv", schema, {"format": "csv"})
+print("rows", ds.row_count())
+
+report = rdp.profile_dataset(ds, {"head_rows": 50, "quantiles": [0.5]})
+print("profile rows sampled", report["row_count"])
+
+validation = rdp.validate_dataset(
+    ds,
+    {"checks": [{"kind": "not_null", "column": "id", "severity": "error"}]},
+)
+print("checks", validation["summary"]["total_checks"])
+```
+
+**From a checkout** (Rust + [uv](https://docs.astral.sh/uv/) required for the editable build):
+
+```bash
+cd python-wrapper
+uv sync --group dev
+uv run maturin develop --release
+```
+
+**From PyPI** (after you publish a release — see [`Planning/RELEASE_CHECKLIST.md`](Planning/RELEASE_CHECKLIST.md)):
+
+```bash
+pip install rust-data-processing
+```
+
+Use the same `import rust_data_processing as rdp` pattern; point `ingest_from_path` at your own CSV, JSON, or Parquet files and schema.
+
+**Rust:** [`docs/rust/README.md`](docs/rust/README.md) has copy-paste examples for `Cargo.toml`, ingestion, Polars-backed pipelines, SQL, transforms, profiling, validation, execution, and benchmarks. **Python (expanded):** [`docs/python/README.md`](docs/python/README.md). The conceptual Rust API overview is in [`API.md`](API.md).
+
+Generate the same HTML as CI locally: `./scripts/build_docs.ps1` (Rust only) or `./scripts/build_docs.ps1 -All` (Rust + Python → `_site/python/`). Maintainer notes: [`Planning/DOCUMENTATION.md`](Planning/DOCUMENTATION.md).
+
+## Reporting bugs
+
+- Open a **[GitHub Issue](https://github.com/vihangdesai2018-png/rust-data-processing/issues)** and use **Bug Report** or **Feature Request** so we get version, OS, and repro steps.
+- **Security:** do not file publicly — read [`SECURITY.md`](SECURITY.md).
+- How we triage and prioritize: [`Planning/ISSUE_TRIAGE.md`](Planning/ISSUE_TRIAGE.md).
+
 - **Status**: library APIs are in `src/lib.rs`; the binary (`src/main.rs`) is currently just a placeholder.
 - **Developer guide**: see `README_DEV.md` (module map, workflows, conventions)
 - **Benchmark snapshot (pipeline bench)**: on this repo (Windows, Criterion), `filter → map → reduce(sum)`:
@@ -32,8 +86,8 @@ Canonical checklist lives in `Planning/PHASE1_PLAN.md`; this section is the READ
 - [x] Feature-gated direct DB ingestion via ConnectorX (DB → Arrow → `DataSet`) + compatibility research notes
 - [x] CDC feasibility spike + interface boundary (Phase 2 candidate)
 - [x] Profiling APIs: metrics set + sampling/large-data modes
-- [ ] Validation APIs: DSL + built-in checks + severity handling + reporting
-- [ ] Outlier detection: primitives + explainable outputs
+- [x] Validation APIs: DSL + built-in checks + severity handling + reporting
+- [x] Outlier detection: primitives + explainable outputs
 
 ## Platform support
 
@@ -49,330 +103,13 @@ Canonical checklist lives in `Planning/PHASE1_PLAN.md`; this section is the READ
 - **Benchmarks**:
   - `cargo bench --bench pipelines` is cross-platform.
   - `benchmarks.ps1` is a Windows/PowerShell convenience wrapper; on Linux/macOS you can run it via `pwsh` or just run `cargo bench` directly.
-  - `scripts/run_benchmarks.ps1` runs all Criterion benchmarks (pipelines + ingestion + map/reduce).
+  - `scripts/run_benchmarks.ps1` runs all Criterion benchmarks (pipelines + ingestion + map/reduce + profiling + validation + outliers).
 
-## Quick start (library usage)
+## Python bindings
 
-Add to your `Cargo.toml` (example):
+Bindings live under **`python-wrapper/`** (**PyO3** + **maturin** + **uv**). User-facing docs: **`python-wrapper/README.md`**, **`python-wrapper/API.md`**, **`python-wrapper/README_DEV.md`**. The native module calls this crate; Polars stays on the Rust side.
 
-```toml
-[dependencies]
-rust-data-processing = { path = "." }
-```
-
-Ingest a file using a schema:
-
-```rust
-use rust_data_processing::ingestion::{ingest_from_path, IngestionOptions};
-use rust_data_processing::types::{DataType, Field, Schema};
-
-fn main() -> Result<(), rust_data_processing::IngestionError> {
-    let schema = Schema::new(vec![
-        Field::new("id", DataType::Int64),
-        Field::new("name", DataType::Utf8),
-    ]);
-
-    // Auto-detect format from file extension (.csv/.json/.parquet/...).
-    let ds = ingest_from_path("tests/fixtures/people.csv", &schema, &IngestionOptions::default())?;
-    println!("rows={}", ds.row_count());
-    Ok(())
-}
-```
-
-Prefer builder-style options when you only need to override a couple knobs:
-
-```rust
-use rust_data_processing::ingestion::IngestionOptionsBuilder;
-use rust_data_processing::types::{DataType, Field, Schema};
-
-fn main() -> Result<(), rust_data_processing::IngestionError> {
-    let schema = Schema::new(vec![
-        Field::new("id", DataType::Int64),
-        Field::new("name", DataType::Utf8),
-    ]);
-
-    let ds = IngestionOptionsBuilder::new()
-        .ingest_from_path("tests/fixtures/people.csv", &schema)?;
-
-    println!("rows={}", ds.row_count());
-    Ok(())
-}
-```
-
-## DataFrame-centric pipelines (Polars-backed) (Phase 1)
-
-Use `rust_data_processing::pipeline::DataFrame` for a DataFrame-centric pipeline API that compiles to a lazy plan and
-collects into a `DataSet`:
-
-```rust
-use rust_data_processing::pipeline::{DataFrame, Predicate};
-use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
-
-let ds = DataSet::new(
-    Schema::new(vec![
-        Field::new("id", DataType::Int64),
-        Field::new("active", DataType::Bool),
-        Field::new("score", DataType::Float64),
-    ]),
-    vec![
-        vec![Value::Int64(1), Value::Bool(true), Value::Float64(10.0)],
-        vec![Value::Int64(2), Value::Bool(true), Value::Float64(20.0)],
-        vec![Value::Int64(3), Value::Bool(false), Value::Float64(30.0)],
-    ],
-);
-
-let out = DataFrame::from_dataset(&ds)?
-    .filter(Predicate::Eq {
-        column: "active".to_string(),
-        value: Value::Bool(true),
-    })?
-    .multiply_f64("score", 2.0)?
-    .collect()?;
-
-assert_eq!(out.row_count(), 2);
-```
-
-## SQL queries (Polars-backed) (Phase 1)
-
-The `rust_data_processing::sql` module compiles SQL into a Polars lazy plan and returns a `pipeline::DataFrame`.
-
-Single-table query (table name is `df`):
-
-```rust
-use rust_data_processing::pipeline::DataFrame;
-use rust_data_processing::sql;
-
-let out = sql::query(
-    &DataFrame::from_dataset(&ds)?,
-    "SELECT id, score FROM df WHERE active = TRUE ORDER BY id DESC LIMIT 10",
-)?
-.collect()?;
-```
-
-Multi-table JOINs via a context:
-
-```rust
-use rust_data_processing::pipeline::DataFrame;
-use rust_data_processing::sql;
-
-let mut ctx = sql::Context::new();
-ctx.register("people", &DataFrame::from_dataset(&people)?)?;
-ctx.register("scores", &DataFrame::from_dataset(&scores)?)?;
-
-let out = ctx
-    .execute("SELECT p.id, p.name, s.score FROM people p JOIN scores s ON p.id = s.id")?
-    .collect()?;
-```
-
-## Direct DB ingestion (ConnectorX) (feature-gated)
-
-Enable the feature:
-
-```powershell
-cargo test --features db_connectorx
-```
-
-Example (Postgres):
-
-```rust
-use rust_data_processing::ingestion::ingest_from_db_infer;
-
-// Example: cxprotocol=binary for Postgres.
-let ds = ingest_from_db_infer(
-    "postgresql://user:pass@localhost:5432/db?cxprotocol=binary",
-    "SELECT id, score, active FROM my_table",
-)?;
-println!("rows={}", ds.row_count());
-```
-
-## End-user transformation spec (TransformSpec) (Phase 1)
-
-`transform::TransformSpec` is a serde-friendly “mapping spec” that compiles to our Polars-backed pipeline wrappers
-while keeping the public API engine-agnostic.
-
-```rust
-use rust_data_processing::pipeline::CastMode;
-use rust_data_processing::transform::{TransformSpec, TransformStep};
-use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
-
-let ds = DataSet::new(
-    Schema::new(vec![
-        Field::new("id", DataType::Int64),
-        Field::new("score", DataType::Int64),
-        Field::new("weather", DataType::Utf8),
-    ]),
-    vec![
-        vec![Value::Int64(1), Value::Int64(10), Value::Utf8("drizzle".to_string())],
-        vec![Value::Int64(2), Value::Null, Value::Utf8("rain".to_string())],
-    ],
-);
-
-let out_schema = Schema::new(vec![
-    Field::new("id", DataType::Int64),
-    Field::new("score_f", DataType::Float64),
-    Field::new("wx", DataType::Utf8),
-]);
-
-let spec = TransformSpec::new(out_schema.clone())
-    .with_step(TransformStep::Rename {
-        pairs: vec![("weather".to_string(), "wx".to_string())],
-    })
-    .with_step(TransformStep::Rename {
-        pairs: vec![("score".to_string(), "score_f".to_string())],
-    })
-    .with_step(TransformStep::Cast {
-        column: "score_f".to_string(),
-        to: DataType::Float64,
-        mode: CastMode::Lossy,
-    })
-    .with_step(TransformStep::FillNull {
-        column: "score_f".to_string(),
-        value: Value::Float64(0.0),
-    })
-    .with_step(TransformStep::Select {
-        columns: vec!["id".to_string(), "score_f".to_string(), "wx".to_string()],
-    });
-
-let out = spec.apply(&ds)?;
-assert_eq!(out.schema, out_schema);
-```
-
-## Profiling (Phase 1)
-
-Use `profiling::profile_dataset` to compute common metrics. For large data, start with deterministic sampling via `Head(n)`.
-
-```rust
-use rust_data_processing::profiling::{profile_dataset, ProfileOptions, SamplingMode};
-use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
-
-let ds = DataSet::new(
-    Schema::new(vec![Field::new("score", DataType::Float64)]),
-    vec![vec![Value::Float64(1.0)], vec![Value::Null], vec![Value::Float64(3.0)]],
-);
-
-let rep = profile_dataset(
-    &ds,
-    &ProfileOptions {
-        sampling: SamplingMode::Head(2),
-        quantiles: vec![0.5],
-    },
-)?;
-
-assert_eq!(rep.row_count, 2);
-assert_eq!(rep.columns[0].null_count, 1);
-```
-
-## CDC interface boundary (Phase 1 spike)
-
-The `cdc` module defines crate-owned boundary types for CDC events without picking a concrete CDC implementation dependency.
-
-```rust
-use rust_data_processing::cdc::{CdcEvent, CdcOp, RowImage, SourceMeta, TableRef};
-use rust_data_processing::types::Value;
-
-let ev = CdcEvent {
-    meta: SourceMeta { source: Some("db".to_string()), checkpoint: None },
-    table: TableRef::with_schema("public", "users"),
-    op: CdcOp::Insert,
-    before: None,
-    after: Some(RowImage::new(vec![
-        ("id".to_string(), Value::Int64(1)),
-        ("name".to_string(), Value::Utf8("Ada".to_string())),
-    ])),
-};
-
-assert_eq!(ev.op, CdcOp::Insert);
-```
-
-## Cookbook (Phase 1)
-
-### Stable transformation wrappers (Polars-backed, engine-agnostic types)
-
-Rename + cast + fill nulls:
-
-```rust
-use rust_data_processing::pipeline::DataFrame;
-use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
-
-let ds = DataSet::new(
-    Schema::new(vec![
-        Field::new("id", DataType::Int64),
-        Field::new("score", DataType::Int64),
-    ]),
-    vec![vec![Value::Int64(1), Value::Int64(10)], vec![Value::Int64(2), Value::Null]],
-);
-
-let out = DataFrame::from_dataset(&ds)?
-    .rename(&[("score", "score_i")])?
-    .cast("score_i", DataType::Float64)?
-    .fill_null("score_i", Value::Float64(0.0))?
-    .collect()?;
-```
-
-Group-by aggregates:
-
-```rust
-use rust_data_processing::pipeline::{Agg, DataFrame};
-use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
-
-let ds = DataSet::new(
-    Schema::new(vec![
-        Field::new("grp", DataType::Utf8),
-        Field::new("score", DataType::Float64),
-    ]),
-    vec![
-        vec![Value::Utf8("A".to_string()), Value::Float64(1.0)],
-        vec![Value::Utf8("A".to_string()), Value::Float64(2.0)],
-        vec![Value::Utf8("B".to_string()), Value::Null],
-    ],
-);
-
-let out = DataFrame::from_dataset(&ds)?
-    .group_by(
-        &["grp"],
-        &[
-            Agg::Sum {
-                column: "score".to_string(),
-                alias: "sum_score".to_string(),
-            },
-            Agg::CountRows {
-                alias: "cnt".to_string(),
-            },
-        ],
-    )?
-    .collect()?;
-```
-
-Note: Polars aggregation semantics apply (e.g. `SUM` ignores nulls and may return `0` for all-null groups).
-
-Join two DataFrames:
-
-```rust
-use rust_data_processing::pipeline::{DataFrame, JoinKind};
-use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
-
-let people = DataSet::new(
-    Schema::new(vec![
-        Field::new("id", DataType::Int64),
-        Field::new("name", DataType::Utf8),
-    ]),
-    vec![
-        vec![Value::Int64(1), Value::Utf8("Ada".to_string())],
-        vec![Value::Int64(2), Value::Utf8("Grace".to_string())],
-    ],
-);
-let scores = DataSet::new(
-    Schema::new(vec![Field::new("id", DataType::Int64), Field::new("score", DataType::Float64)]),
-    vec![
-        vec![Value::Int64(1), Value::Float64(9.0)],
-        vec![Value::Int64(3), Value::Float64(7.0)],
-    ],
-);
-
-let out = DataFrame::from_dataset(&people)?
-    .join(DataFrame::from_dataset(&scores)?, &["id"], &["id"], JoinKind::Inner)?
-    .collect()?;
-```
+**Rust** examples (ingestion, DataFrame/SQL, transforms, profiling, execution, benchmarks): [`docs/rust/README.md`](docs/rust/README.md).
 
 ## What data can be consumed? (Epic 1 / Stories 1.1–1.2)
 
@@ -408,144 +145,14 @@ transformations using `rust_data_processing::processing`:
 
 - `filter(&DataSet, predicate) -> DataSet`
 - `map(&DataSet, mapper) -> DataSet`
-- `reduce(&DataSet, column, ReduceOp) -> Option<Value>`
+- `reduce(&DataSet, column, ReduceOp) -> Option<Value>` — includes **mean**, **variance**, **std dev** (`VarianceKind::{Population, Sample}`), **sum of squares**, **L2 norm**, **count distinct** (non-null), plus **count** / **sum** / **min** / **max**
+- `feature_wise_mean_std(&DataSet, &[&str], VarianceKind)` — one pass over rows for mean + std on several numeric columns (`FeatureMeanStd`)
+- `arg_max_row` / `arg_min_row` — first row index where a column is max/min (ties: smallest index)
+- `top_k_by_frequency` — top‑\(k\) `(value, count)` pairs for label-style columns
 
-Example:
+Polars-backed equivalents for whole-frame scalars: `pipeline::DataFrame::reduce`, `feature_wise_mean_std`. **Semantics**: [`Planning/REDUCE_AGG_SEMANTICS.md`](Planning/REDUCE_AGG_SEMANTICS.md).
 
-```rust
-use rust_data_processing::processing::{filter, map, reduce, ReduceOp};
-use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
-
-let schema = Schema::new(vec![
-    Field::new("id", DataType::Int64),
-    Field::new("active", DataType::Bool),
-    Field::new("score", DataType::Float64),
-]);
-
-let ds = DataSet::new(
-    schema,
-    vec![
-        vec![Value::Int64(1), Value::Bool(true), Value::Float64(10.0)],
-        vec![Value::Int64(2), Value::Bool(false), Value::Float64(20.0)],
-        vec![Value::Int64(3), Value::Bool(true), Value::Null],
-    ],
-);
-
-let active_idx = ds.schema.index_of("active").unwrap();
-let filtered = filter(&ds, |row| matches!(row.get(active_idx), Some(Value::Bool(true))));
-
-let mapped = map(&filtered, |row| {
-    let mut out = row.to_vec();
-    if let Some(Value::Float64(v)) = out.get(2) {
-        out[2] = Value::Float64(v * 1.1);
-    }
-    out
-});
-
-let sum = reduce(&mapped, "score", ReduceOp::Sum).unwrap();
-assert_eq!(sum, Value::Float64(11.0));
-```
-
-### Execution engine (parallel pipelines) (Story 1.3)
-
-If you want **parallel filter/map**, plus **throttling** and **real-time metrics**, use `rust_data_processing::execution`:
-
-```rust
-use rust_data_processing::execution::{ExecutionEngine, ExecutionOptions};
-use rust_data_processing::processing::ReduceOp;
-use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
-
-let schema = Schema::new(vec![
-    Field::new("id", DataType::Int64),
-    Field::new("active", DataType::Bool),
-    Field::new("score", DataType::Float64),
-]);
-let ds = DataSet::new(
-    schema,
-    vec![
-        vec![Value::Int64(1), Value::Bool(true), Value::Float64(10.0)],
-        vec![Value::Int64(2), Value::Bool(false), Value::Float64(20.0)],
-        vec![Value::Int64(3), Value::Bool(true), Value::Null],
-    ],
-);
-
-let engine = ExecutionEngine::new(ExecutionOptions {
-    num_threads: Some(4),
-    chunk_size: 1_024,
-    max_in_flight_chunks: 4,
-});
-
-let active_idx = ds.schema.index_of("active").unwrap();
-let filtered = engine.filter_parallel(&ds, |row| matches!(row.get(active_idx), Some(Value::Bool(true))));
-let mapped = engine.map_parallel(&filtered, |row| row.to_vec());
-let sum = engine.reduce(&mapped, "score", ReduceOp::Sum).unwrap();
-
-let metrics = engine.metrics().snapshot();
-println!("rows_processed={}, elapsed={:?}", metrics.rows_processed, metrics.elapsed);
-```
-
-### More examples: reduce ops and missing columns
-
-```rust
-use rust_data_processing::processing::{reduce, ReduceOp};
-use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
-
-let schema = Schema::new(vec![Field::new("score", DataType::Float64)]);
-let ds = DataSet::new(schema, vec![vec![Value::Float64(1.0)], vec![Value::Null]]);
-
-assert_eq!(reduce(&ds, "score", ReduceOp::Count), Some(Value::Int64(2)));
-assert_eq!(reduce(&ds, "score", ReduceOp::Sum), Some(Value::Float64(1.0)));
-assert_eq!(reduce(&ds, "missing", ReduceOp::Sum), None);
-```
-
-### Benchmarks (Story 1.2.5)
-
-Criterion benchmarks live under `benches/` (currently `benches/pipelines.rs`).
-
-```powershell
-cargo bench --bench pipelines
-```
-
-Additional benchmark targets:
-
-- `cargo bench --bench ingestion`
-  - Generates 20k-row fixtures (CSV / JSON array / NDJSON / nested JSON / Parquet; Excel when enabled)
-  - Measures schema-known vs schema-inferred and a “warm vs rotating files” proxy for cache effects
-- `cargo bench --bench map_reduce`
-  - Benchmarks filter/map/reduce on in-memory `DataSet` vs `ExecutionEngine` parallel path
-- `cargo bench --bench profiling`
-  - Benchmarks `profiling::profile_dataset` (full vs head sampling)
-
-Convenience runner (Windows / PowerShell):
-
-```powershell
-./scripts/run_benchmarks.ps1 -Quick
-```
-
-### Observability (failure/alert hooks)
-
-```rust
-use std::sync::Arc;
-
-use rust_data_processing::ingestion::{
-    ingest_from_path, IngestionOptions, IngestionSeverity, StdErrObserver,
-};
-use rust_data_processing::types::{DataType, Field, Schema};
-
-fn main() -> Result<(), rust_data_processing::IngestionError> {
-    let schema = Schema::new(vec![Field::new("id", DataType::Int64)]);
-
-    let opts = IngestionOptions {
-        observer: Some(Arc::new(StdErrObserver::default())),
-        alert_at_or_above: IngestionSeverity::Critical,
-        ..Default::default()
-    };
-
-    // Missing files are treated as Critical (and will trigger `on_alert` at this threshold).
-    let _ = ingest_from_path("does_not_exist.csv", &schema, &opts).unwrap_err();
-    Ok(())
-}
-```
+Full **Rust** examples (filter/map/reduce, aggregates, parallel `ExecutionEngine`, Criterion benchmarks, ingestion observers): [`docs/rust/README.md`](docs/rust/README.md) § *Processing pipelines*.
 
 ## Supported formats
 
@@ -583,12 +190,13 @@ rust-data-processing = { path = ".", default-features = false }
 ./scripts/run_unit_tests.ps1
 ```
 
-## Generate API docs (Rustdoc)
+## Generate API docs (Rustdoc + optional Python pdoc)
 
-Rust has built-in API documentation via **Rustdoc**.
+Rust uses **Rustdoc**; Python bindings use **pdoc** (same as CI). See [Documentation](#documentation-read-the-apis-online) for published links.
 
 ```powershell
-./scripts/build_docs.ps1
+./scripts/build_docs.ps1              # Rust only → target/doc/
+./scripts/build_docs.ps1 -All         # Rust + Python → target/doc/ and _site/python/
 ```
 
 ## Deep tests (large/realistic fixtures)
@@ -649,3 +257,13 @@ if ($parts -notcontains $cargoBin) {
 ```
 
 After changing the *User* PATH, **restart your terminal** (or log out/in) so new shells inherit it.
+
+## License
+
+Dual-licensed under your choice of **Apache License 2.0** or **MIT**. See [`LICENSE-APACHE`](LICENSE-APACHE) and [`LICENSE-MIT`](LICENSE-MIT).
+
+SPDX-License-Identifier: `MIT OR Apache-2.0`
+
+## Publishing to crates.io
+
+Maintainers: see [`Planning/RELEASE_CHECKLIST.md`](Planning/RELEASE_CHECKLIST.md) and [`How_TO_deploy.md`](Planning/How_TO_deploy.md). After the first successful `cargo publish`, API docs appear on [docs.rs](https://docs.rs/rust-data-processing) for the published version.

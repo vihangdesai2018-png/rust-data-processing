@@ -127,16 +127,25 @@ fn ingest_json_values(values: &[serde_json::Value], schema: &Schema) -> Ingestio
 
     for (idx0, v) in values.iter().enumerate() {
         let row_num = idx0 + 1;
-        let obj = v.as_object().ok_or_else(|| IngestionError::SchemaMismatch {
-            message: format!("row {row_num} is not a json object"),
-        })?;
+        let obj = v
+            .as_object()
+            .ok_or_else(|| IngestionError::SchemaMismatch {
+                message: format!("row {row_num} is not a json object"),
+            })?;
 
         let mut row: Vec<Value> = Vec::with_capacity(schema.fields.len());
         for field in &schema.fields {
-            let jv = get_by_dot_path(obj, &field.name).ok_or_else(|| IngestionError::SchemaMismatch {
-                message: format!("row {row_num} missing required field '{}'", field.name),
+            let jv = get_by_dot_path(obj, &field.name).ok_or_else(|| {
+                IngestionError::SchemaMismatch {
+                    message: format!("row {row_num} missing required field '{}'", field.name),
+                }
             })?;
-            row.push(convert_json_value(row_num, &field.name, &field.data_type, jv)?);
+            row.push(convert_json_value(
+                row_num,
+                &field.name,
+                &field.data_type,
+                jv,
+            )?);
         }
         rows.push(row);
     }
@@ -175,30 +184,36 @@ fn convert_json_value(
     }
 
     match data_type {
-        DataType::Utf8 => v.as_str().map(|s| Value::Utf8(s.to_string())).ok_or_else(|| {
-            IngestionError::ParseError {
+        DataType::Utf8 => v
+            .as_str()
+            .map(|s| Value::Utf8(s.to_string()))
+            .ok_or_else(|| IngestionError::ParseError {
                 row,
                 column: column.to_string(),
                 raw: v.to_string(),
                 message: "expected string".to_string(),
-            }
-        }),
-        DataType::Bool => v.as_bool().map(Value::Bool).ok_or_else(|| IngestionError::ParseError {
-            row,
-            column: column.to_string(),
-            raw: v.to_string(),
-            message: "expected bool".to_string(),
-        }),
+            }),
+        DataType::Bool => v
+            .as_bool()
+            .map(Value::Bool)
+            .ok_or_else(|| IngestionError::ParseError {
+                row,
+                column: column.to_string(),
+                raw: v.to_string(),
+                message: "expected bool".to_string(),
+            }),
         DataType::Int64 => {
             if let Some(n) = v.as_i64() {
                 Ok(Value::Int64(n))
             } else if let Some(n) = v.as_u64() {
-                i64::try_from(n).map(Value::Int64).map_err(|_| IngestionError::ParseError {
-                    row,
-                    column: column.to_string(),
-                    raw: v.to_string(),
-                    message: "u64 out of range for i64".to_string(),
-                })
+                i64::try_from(n)
+                    .map(Value::Int64)
+                    .map_err(|_| IngestionError::ParseError {
+                        row,
+                        column: column.to_string(),
+                        raw: v.to_string(),
+                        message: "u64 out of range for i64".to_string(),
+                    })
             } else {
                 Err(IngestionError::ParseError {
                     row,
@@ -208,11 +223,15 @@ fn convert_json_value(
                 })
             }
         }
-        DataType::Float64 => v.as_f64().map(Value::Float64).ok_or_else(|| IngestionError::ParseError {
-            row,
-            column: column.to_string(),
-            raw: v.to_string(),
-            message: "expected number".to_string(),
-        }),
+        DataType::Float64 => {
+            v.as_f64()
+                .map(Value::Float64)
+                .ok_or_else(|| IngestionError::ParseError {
+                    row,
+                    column: column.to_string(),
+                    raw: v.to_string(),
+                    message: "expected number".to_string(),
+                })
+        }
     }
 }

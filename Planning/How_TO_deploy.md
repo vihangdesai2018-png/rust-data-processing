@@ -1,102 +1,171 @@
-I can't create downloadable files directly, but I can provide a formatted text that you can copy into a Word document. Here's how you can organize the content:
+# Deploy: crates.io + PyPI (Rust + Python wrapper)
+
+This project is a Rust library (**crates.io**) and a Python package (**PyPI**) built with **PyO3 + maturin** from **`python-wrapper/`** (no `setup.py`).
 
 ---
 
-# Deploying Your GitHub Library to Cargo and Pip
+## Deploy to crates.io (Rust)
 
-## Deploying to Cargo (Rust)
+Full checklist: **`Planning/RELEASE_CHECKLIST.md`** (Rust + Python alignment).
 
-### 1. Prepare Your Project
-- Create a `Cargo.toml`: Ensure that your project has a `Cargo.toml` file that includes metadata such as the name, version, author, and description of your library.
+### Prerequisites
 
-### 2. Set Up Your GitHub Repository
-- Host the Code: Push your Rust library to a GitHub repository. Use a descriptive README file.
+- Root **`Cargo.toml`**: correct **name**, **version**, **description**, **license** (`MIT OR Apache-2.0`), **repository**, **readme**, **keywords**, **categories**, **rust-version**
+- **`LICENSE-MIT`**, **`LICENSE-APACHE`**
+- **`CHANGELOG.md`** updated for the release
+- Local: `cargo fmt --check`, `cargo clippy`, `cargo test`; `cargo publish --dry-run` succeeds
 
-### 3. Publish to crates.io
-- Create an Account: Sign up for a [crates.io](https://crates.io/) account.
-- Login via Cargo: In your terminal, run:
-  ```bash
-  cargo login YOUR_API_TOKEN
-  ```
-- Publish Your Library: Use the following command:
-  ```bash
-  cargo publish
-  ```
+### Publish
 
-### 4. Update Your Library
-- Change the version in `Cargo.toml` and run `cargo publish` again.
+```bash
+cargo login <CRATES_IO_TOKEN>   # one-time per machine
+cargo publish --dry-run
+cargo publish
+```
 
----
+### After publish
 
-## Deploying to Pip (Python)
-
-### 1. Prepare Your Project
-- Create a `setup.py`: Include the package name, version, author, and other metadata.
-
-  Example `setup.py`:
-  ```python
-  from setuptools import setup, find_packages
-
-  setup(
-      name='your_library_name',
-      version='0.1.0',
-      author='Your Name',
-      description='A brief description of your library.',
-      packages=find_packages(),
-  )
-  ```
-
-### 2. Set Up Your GitHub Repository
-- Host Your Code: Push your library code to a GitHub repository.
-
-### 3. Publish to PyPI
-- Create an Account: Sign up at [PyPI](https://pypi.org/).
-- Use Twine: First, install Twine:
-  ```bash
-  pip install twine
-  ```
-- Build the Package:
-  ```bash
-  python setup.py sdist bdist_wheel
-  ```
-- Upload to PyPI:
-  ```bash
-  twine upload dist/*
-  ```
-
-### 4. Update Your Library
-- Change the version in `setup.py`, build again, and upload using Twine.
+- Tag the release (e.g. `v0.1.0`) and push the tag (see release checklist).
+- docs.rs builds automatically for the published crate version.
 
 ---
 
-## Summary Comparison
+## Deploy to PyPI (Python wrapper)
 
-| Step                          | Cargo (Rust)                           | Pip (Python)                     |
-|-------------------------------|----------------------------------------|-----------------------------------|
-| Library Metadata File         | `Cargo.toml`                          | `setup.py`                       |
-| Hosting                        | GitHub                                 | GitHub                           |
-| Account Creation               | crates.io                              | PyPI                             |
-| Login Process                  | `cargo login`                         | Not required (Twine handles this) |
-| Publishing Command             | `cargo publish`                       | `twine upload dist/*`            |
-| Updating Process               | Change version in `Cargo.toml`       | Update version in `setup.py`     |
+### Layout (Phase 1a)
+
+| Path | Role |
+|------|------|
+| **`python-wrapper/pyproject.toml`** | PEP 517 metadata, `[tool.maturin]`, Python version / classifiers |
+| **`python-wrapper/Cargo.toml`** | PyO3 extension crate (`cdylib` → `rust_data_processing._rust_data_processing`) |
+| **`python-wrapper/rust_data_processing/`** | Pure Python surface (`__init__.py`, …) |
+
+The extension links the workspace crate **`rust-data-processing`** via `path = ".."`.
+
+### Local development (editable install)
+
+From **`python-wrapper/`** (with **uv** + Rust toolchain):
+
+```bash
+uv sync --group dev
+uv run maturin develop --release
+```
+
+Rebuild after Rust or PyO3 changes.
+
+### Build wheels + sdist locally
+
+From **`python-wrapper/`**:
+
+```bash
+uv run maturin build --release
+```
+
+Artifacts default to **`python-wrapper/target/wheels/`** (or `dist/` if you pass `-o dist`).
+
+### CI (GitHub Actions)
+
+| Workflow | When | What |
+|----------|------|------|
+| **`.github/workflows/rust_ci.yml`** | PRs + pushes to **`main`** | **`cargo fmt`**, **`clippy`**, **`cargo test`** (incl. doctests) on **ubuntu + windows**; **ubuntu** **`cargo test --features ci_expanded`** (not **`db_connectorx`** — OpenSSL/Perl; test DB locally) |
+| **`.github/workflows/python_ci.yml`** | PRs + pushes to `main` (when wrapper / library / lockfile change) | `uv` + `maturin develop --release` + `pytest` on **ubuntu / windows / macOS** × **3.11 / 3.12**; **ubuntu + 3.12** also **`maturin build`** + **`uv pip install`** wheel + import smoke |
+| **`.github/workflows/rust_release.yml`** | Push tag **`v*`** | **Guard:** tag must point at a commit on **`origin/main`** → **`cargo publish --locked`** → **crates.io** |
+| **`.github/workflows/python_release.yml`** | Push tag **`v*`** | **Same guard** → **`PyO3/maturin-action`** wheels + **PyPI** |
+
+#### Release policy: merge to `main`, then tag
+
+Publishing to **crates.io** and **PyPI** does **not** run on every push to `main`. It runs when you push a **version tag** (`v0.2.0`, …), and **only if** that tag’s commit is already an **ancestor of `origin/main`** (i.e. you merged the release PR to `main` first, then tagged that merge commit). Tags on commits that never reached `main` are rejected.
+
+### GitHub: add secrets for crates.io and PyPI
+
+Do this once per GitHub repository (or when rotating tokens).
+
+#### A) Open the secrets page
+
+1. On GitHub, open your repo (**e.g.** `your-org/rust-data-processing`).
+2. **Settings** (repo settings, not your profile).
+3. In the left sidebar: **Secrets and variables** → **Actions**.
+4. **New repository secret** (repeat for each secret below).
+
+#### B) **crates.io** token → secret `CRATES_IO_TOKEN`
+
+1. Sign in to **[crates.io](https://crates.io)** (same account that owns or is allowed to publish the crate).
+2. Click your avatar → **Account Settings**.
+3. Open **API Tokens** (or **Publish** / **API** depending on UI).
+4. **New Token** — choose a name (e.g. `github-actions-rust-data-processing`).
+5. Set permissions so it can **publish** this crate (for a new crate, the first successful `cargo publish` still requires you to be logged in as the crate owner).
+6. **Generate** and **copy the token** (it may only be shown once).
+
+7. Back in GitHub **Actions** secrets:
+   - **Name:** `CRATES_IO_TOKEN`
+   - **Secret:** paste the crates.io token.
+
+The workflow **`rust_release.yml`** sets `CARGO_REGISTRY_TOKEN` from this secret for `cargo publish`.
+
+#### C) **PyPI** token → secret `PYPI_API_TOKEN`
+
+1. Sign in to **[pypi.org](https://pypi.org)**.
+2. **Account settings** → **API tokens** → **Add API token**.
+3. **Token name** (e.g. `github-actions-rust-data-processing`).
+4. **Scope:** prefer a **project-scoped** token for the `rust-data-processing` project once the project exists; for the very first upload you may need a user-wide token, then narrow scope later.
+5. **Create** and **copy the token** (starts with `pypi-`).
+
+6. In GitHub **Actions** secrets:
+   - **Name:** `PYPI_API_TOKEN`
+   - **Secret:** paste the PyPI token.
+
+The workflow **`python_release.yml`** passes this to **`pypa/gh-action-pypi-publish`** (PyPI expects API-token auth via this pattern).
+
+#### D) After secrets exist
+
+1. Merge your release to **`main`** (version bumps + changelog, CI green).
+2. Create and push the tag on **`main`** (see **`Planning/RELEASE_CHECKLIST.md`**):
+
+   ```bash
+   git fetch origin main
+   git checkout main && git pull origin main
+   git tag -a v0.2.0 -m "Release v0.2.0"
+   git push origin v0.2.0
+   ```
+
+3. Watch **Actions**: **Rust (crates.io release)** and **Python (PyPI release)** should succeed. If a secret is missing or wrong, the publish step fails with an auth error.
+
+**Optional:** [PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishers/) (OIDC) avoids long-lived **`PYPI_API_TOKEN`**; configure it on PyPI and replace the password step in **`python_release.yml`** per PyPI’s guide.
+
+### Optional: `abi3` / stable Python ABI
+
+**Not enabled** today. Turning on **`abi3`** (e.g. PyO3 `abi3-py310`) reduces the number of wheels (one binary can target multiple Python versions) but **restricts** which PyO3 APIs you may use. If you adopt it later:
+
+- Add the appropriate **`pyo3`** features in **`python-wrapper/Cargo.toml`**
+- Set **`[tool.maturin] py-limited-api = true`** (and compatible `requires-python`) per [maturin docs](https://www.maturin.rs/limitations.html)
 
 ---
 
-## Reporting Bugs
+## Version alignment (Phase 1a)
 
-### 1. GitHub Issues
-- Create an Issues Page: Enable the "Issues" feature in your GitHub repository.
-- Template: Create a bug report template to guide users.
+Keep these **in sync** for each release:
 
-### 2. README File
-- Add Reporting Instructions: Include a section in your `README.md` on bug reporting, linking to the "Issues" page.
+| Location | Field |
+|----------|--------|
+| Repo root **`Cargo.toml`** | `[package] version` |
+| **`python-wrapper/pyproject.toml`** | `[project] version` |
+| **`python-wrapper/Cargo.toml`** | `[package] version` (extension crate; should match the Python package) |
 
-### 3. Communication Channels
-- Other Platforms: Consider discussion boards or chat platforms for real-time communication.
+The **Python distribution version** on PyPI is taken from **`pyproject.toml`**.
 
-### 4. Bug Reporting Tools
-- Use Third-Party Services: Tools like Sentry or Bugsnag can help track errors and exceptions.
+### Feature flags in wheels
+
+Default **GitHub** wheel builds use **`python-wrapper/Cargo.toml`** defaults ( **`excel`** enabled on the path dependency; **DB** is **not** enabled unless you add **`features = ["db"]`** under **`[tool.maturin]`** or pass **`--features db`** to **`maturin build`**).
+
+Document in **`python-wrapper/README_DEV.md`** and **`API.md`** which optional capabilities need a **custom wheel build**.
 
 ---
 
-To create the document, simply copy the above content, paste it into Microsoft Word or Google Docs, and save it as needed. If you need more help, just let me know!
+## CI / deploy policy
+
+Branching, when workflows run, and why we use **tag + `main`** for publishes: **`Planning/CI_DEPLOY_POLICY.md`**.
+
+## Reporting bugs
+
+- Use **GitHub Issues** (link from the repo **README**).
+- Optional: add issue templates under **`.github/ISSUE_TEMPLATE/`**.

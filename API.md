@@ -2,6 +2,8 @@
 
 This file is a **high-level, human-friendly overview** of the current API surface.
 
+**License:** `MIT OR Apache-2.0` (see `LICENSE-MIT` and `LICENSE-APACHE` in the repo root).
+
 For the canonical, always-up-to-date API docs, use **Rustdoc**:
 
 ```powershell
@@ -19,9 +21,10 @@ This generates HTML docs at `target/doc/rust_data_processing/index.html`.
   - Options/types: `IngestionOptions`, `IngestionOptionsBuilder`, `IngestionFormat`, `ExcelSheetSelection`, `IngestionRequest`
   - Observability: `IngestionObserver`, `IngestionSeverity`, `StdErrObserver`, `FileObserver`, `CompositeObserver`
 - `rust_data_processing::pipeline`
-  - DataFrame-centric pipeline API (Polars-backed): `DataFrame`, `Predicate`
+  - DataFrame-centric pipeline API (Polars-backed): `DataFrame`, `Predicate`, `Agg`, `JoinKind`, `CastMode`
 - `rust_data_processing::processing`
-  - In-memory transformations: `filter`, `map`, `reduce`, `ReduceOp`
+  - In-memory transforms: `filter`, `map`, `reduce`, `ReduceOp`, `VarianceKind`
+  - Multi-column / debugging helpers: `feature_wise_mean_std`, `FeatureMeanStd`, `arg_max_row`, `arg_min_row`, `top_k_by_frequency`
 - `rust_data_processing::execution`
   - Execution engine for processing pipelines: `ExecutionEngine`, `ExecutionOptions`
   - Monitoring: `ExecutionObserver`, `ExecutionEvent`, `ExecutionMetrics`
@@ -252,8 +255,17 @@ The processing layer operates on `types::DataSet` in-memory:
 - **Reduce**: `processing::reduce(&DataSet, column, ReduceOp) -> Option<Value>`
   - `ReduceOp::Count` counts rows (including nulls)
   - `ReduceOp::{Sum, Min, Max}` operate on numeric columns and ignore nulls
+  - `ReduceOp::Mean`, `Variance(VarianceKind)`, `StdDev(VarianceKind)`, `SumSquares`, `L2Norm` (Welford-based where applicable; mean/std/var as `Float64`)
+  - `ReduceOp::CountDistinctNonNull` for numeric, UTF-8, or bool columns
+- **Pipeline scalar reduce**: `pipeline::DataFrame::reduce(self, column, ReduceOp)` (Polars-backed; `sum` delegates to `reduce`)
+- **Feature-wise mean/std (one pass)**: `processing::feature_wise_mean_std(&DataSet, &[&str], VarianceKind) -> Option<Vec<(String, FeatureMeanStd)>>` and `pipeline::DataFrame::feature_wise_mean_std(self, &[&str], VarianceKind)` (all listed columns must be `Int64`/`Float64`)
+- **Arg max/min row**: `processing::arg_max_row`, `processing::arg_min_row` → `Option<Option<(usize, Value)>>` (outer `None` = missing column)
+- **Top‑k by frequency**: `processing::top_k_by_frequency(&DataSet, column, k) -> Option<Vec<(Value, i64)>>`
+- **Group-by ML aggregates**: `pipeline::DataFrame::group_by(keys, &[Agg::...])` supports `Mean`, `StdDev`, `Min`, `Max`, `Sum`, `CountRows`, `CountDistinctNonNull`, etc.
 
-Example:
+Semantics for nulls, all-null groups, and casting: see `Planning/REDUCE_AGG_SEMANTICS.md`.
+
+### Example: filter → map → sum (baseline)
 
 ```rust
 use rust_data_processing::processing::{filter, map, reduce, ReduceOp};
@@ -287,6 +299,160 @@ let mapped = map(&filtered, |row| {
 
 let sum = reduce(&mapped, "score", ReduceOp::Sum).unwrap();
 assert_eq!(sum, Value::Float64(11.0));
+```
+
+### Example: mean, variance, std dev, sum of squares, L2 norm, distinct count
+
+`VarianceKind::Population` uses divisor \(n\); `Sample` uses \(n-1\) (undefined → `Value::Null` if \(n < 2\)).
+
+```rust
+use rust_data_processing::processing::{reduce, ReduceOp, VarianceKind};
+use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
+
+let ds = DataSet::new(
+    Schema::new(vec![
+        Field::new("x", DataType::Float64),
+        Field::new("label", DataType::Utf8),
+    ]),
+    vec![
+        vec![Value::Float64(1.0), Value::Utf8("a".to_string())],
+        vec![Value::Float64(2.0), Value::Utf8("b".to_string())],
+        vec![Value::Null, Value::Utf8("a".to_string())],
+    ],
+);
+
+let _mean = reduce(&ds, "x", ReduceOp::Mean);
+let _var_pop = reduce(&ds, "x", ReduceOp::Variance(VarianceKind::Population));
+let _std_sample = reduce(&ds, "x", ReduceOp::StdDev(VarianceKind::Sample));
+let _ss = reduce(&ds, "x", ReduceOp::SumSquares);
+let _l2 = reduce(&ds, "x", ReduceOp::L2Norm);
+let _dc = reduce(&ds, "label", ReduceOp::CountDistinctNonNull);
+```
+
+### Example: Polars-backed scalar `DataFrame::reduce`
+
+Same `ReduceOp` as in-memory; pays conversion to a Polars plan + one `collect`.
+
+```rust
+use rust_data_processing::pipeline::DataFrame;
+use rust_data_processing::processing::{reduce, ReduceOp, VarianceKind};
+use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
+
+let ds = DataSet::new(
+    Schema::new(vec![Field::new("x", DataType::Float64)]),
+    vec![vec![Value::Float64(1.0)], vec![Value::Float64(3.0)]],
+);
+
+let mem = reduce(&ds, "x", ReduceOp::Mean).unwrap();
+let pol = DataFrame::from_dataset(&ds)
+    .unwrap()
+    .reduce("x", ReduceOp::Mean)
+    .unwrap()
+    .unwrap();
+assert_eq!(mem, pol);
+```
+
+### Example: feature-wise mean and std (one table scan)
+
+All listed columns must be `Int64` or `Float64`. Returns `None` if any name is missing or non-numeric.
+
+```rust
+use rust_data_processing::pipeline::DataFrame;
+use rust_data_processing::processing::{feature_wise_mean_std, VarianceKind};
+use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
+
+let ds = DataSet::new(
+    Schema::new(vec![
+        Field::new("a", DataType::Int64),
+        Field::new("b", DataType::Float64),
+    ]),
+    vec![
+        vec![Value::Int64(10), Value::Float64(1.0)],
+        vec![Value::Int64(20), Value::Float64(2.0)],
+    ],
+);
+
+let cols = ["a", "b"];
+let mem = feature_wise_mean_std(&ds, &cols, VarianceKind::Sample).unwrap();
+let pol = DataFrame::from_dataset(&ds)
+    .unwrap()
+    .feature_wise_mean_std(&cols, VarianceKind::Sample)
+    .unwrap();
+assert_eq!(mem.len(), pol.len());
+```
+
+### Example: arg max / arg min row and top-k frequency
+
+First row wins on ties. `top_k_by_frequency` ignores nulls; sorts by count descending, then by a stable value key.
+
+```rust
+use rust_data_processing::processing::{arg_max_row, arg_min_row, top_k_by_frequency};
+use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
+
+let ds = DataSet::new(
+    Schema::new(vec![
+        Field::new("score", DataType::Int64),
+        Field::new("region", DataType::Utf8),
+    ]),
+    vec![
+        vec![Value::Int64(10), Value::Utf8("west".to_string())],
+        vec![Value::Int64(99), Value::Utf8("east".to_string())],
+        vec![Value::Int64(50), Value::Utf8("west".to_string())],
+    ],
+);
+
+let _max_at = arg_max_row(&ds, "score").unwrap().unwrap(); // (row_index, value)
+let _min_at = arg_min_row(&ds, "score").unwrap().unwrap();
+let top_regions = top_k_by_frequency(&ds, "region", 2).unwrap();
+assert!(!top_regions.is_empty());
+```
+
+### Example: `group_by` with mean, std dev, count-distinct (ML-style)
+
+```rust
+use rust_data_processing::pipeline::{Agg, DataFrame};
+use rust_data_processing::processing::VarianceKind;
+use rust_data_processing::types::{DataSet, DataType, Field, Schema, Value};
+
+let ds = DataSet::new(
+    Schema::new(vec![
+        Field::new("grp", DataType::Utf8),
+        Field::new("score", DataType::Float64),
+        Field::new("tag", DataType::Utf8),
+    ]),
+    vec![
+        vec![Value::Utf8("A".to_string()), Value::Float64(10.0), Value::Utf8("x".to_string())],
+        vec![Value::Utf8("A".to_string()), Value::Float64(20.0), Value::Utf8("y".to_string())],
+        vec![Value::Utf8("B".to_string()), Value::Null, Value::Utf8("z".to_string())],
+    ],
+);
+
+let _out = DataFrame::from_dataset(&ds)
+    .unwrap()
+    .group_by(
+        &["grp"],
+        &[
+            Agg::Mean {
+                column: "score".to_string(),
+                alias: "mu".to_string(),
+            },
+            Agg::StdDev {
+                column: "score".to_string(),
+                alias: "sd".to_string(),
+                kind: VarianceKind::Sample,
+            },
+            Agg::CountDistinctNonNull {
+                column: "tag".to_string(),
+                alias: "n_tag".to_string(),
+            },
+            Agg::CountRows {
+                alias: "n".to_string(),
+            },
+        ],
+    )
+    .unwrap()
+    .collect()
+    .unwrap();
 ```
 
 ## Execution engine (Epic 1 / Story 1.3)

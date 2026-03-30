@@ -64,7 +64,12 @@ pub fn ingest_csv_from_reader<R: std::io::Read>(
         let mut row: Vec<Value> = Vec::with_capacity(schema.fields.len());
         for (field, &csv_idx) in schema.fields.iter().zip(col_idxs.iter()) {
             let raw = record.get(csv_idx).unwrap_or("");
-            row.push(parse_typed_value(user_row, &field.name, &field.data_type, raw)?);
+            row.push(parse_typed_value(
+                user_row,
+                &field.name,
+                &field.data_type,
+                raw,
+            )?);
         }
         rows.push(row);
     }
@@ -85,30 +90,38 @@ fn parse_typed_value(
 
     match data_type {
         DataType::Utf8 => Ok(Value::Utf8(trimmed.to_owned())),
-        DataType::Int64 => trimmed.parse::<i64>().map(Value::Int64).map_err(|e| {
-            IngestionError::ParseError {
-                row,
-                column: column.to_owned(),
-                raw: raw.to_owned(),
-                message: e.to_string(),
-            }
-        }),
-        DataType::Float64 => trimmed.parse::<f64>().map(Value::Float64).map_err(|e| {
-            IngestionError::ParseError {
-                row,
-                column: column.to_owned(),
-                raw: raw.to_owned(),
-                message: e.to_string(),
-            }
-        }),
-        DataType::Bool => parse_bool(trimmed).map(Value::Bool).map_err(|message| {
-            IngestionError::ParseError {
-                row,
-                column: column.to_owned(),
-                raw: raw.to_owned(),
-                message,
-            }
-        }),
+        DataType::Int64 => {
+            trimmed
+                .parse::<i64>()
+                .map(Value::Int64)
+                .map_err(|e| IngestionError::ParseError {
+                    row,
+                    column: column.to_owned(),
+                    raw: raw.to_owned(),
+                    message: e.to_string(),
+                })
+        }
+        DataType::Float64 => {
+            trimmed
+                .parse::<f64>()
+                .map(Value::Float64)
+                .map_err(|e| IngestionError::ParseError {
+                    row,
+                    column: column.to_owned(),
+                    raw: raw.to_owned(),
+                    message: e.to_string(),
+                })
+        }
+        DataType::Bool => {
+            parse_bool(trimmed)
+                .map(Value::Bool)
+                .map_err(|message| IngestionError::ParseError {
+                    row,
+                    column: column.to_owned(),
+                    raw: raw.to_owned(),
+                    message,
+                })
+        }
     }
 }
 

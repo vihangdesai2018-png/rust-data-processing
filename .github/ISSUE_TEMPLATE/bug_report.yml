@@ -1,0 +1,96 @@
+name: Bug Report
+description: Report unexpected behavior, regressions, or crashes (labels: bug).
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. Structured reports help us reproduce and fix issues faster.
+        **Security issues:** do not file here—see [SECURITY.md](https://github.com/vihangdesai2018-png/rust-data-processing/blob/main/SECURITY.md) for how to report them privately.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Observed behavior, including error messages if any.
+      placeholder: e.g. The program panicked when ingesting my Parquet file…
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps, sample file paths (or attach a tiny fixture), and code.
+      placeholder: |
+        1. …
+        2. …
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Crate/package version (e.g. `0.1.0`), git SHA if built from source.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: language
+    attributes:
+      label: Language / binding
+      options:
+        - Rust (crate)
+        - Python (rust-data-processing on PyPI / maturin develop)
+        - Both / not sure
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      description: e.g. Windows 11, Ubuntu 24.04, macOS 15
+    validations:
+      required: true
+
+  - type: textarea
+    id: feature-flags
+    attributes:
+      label: Rust Cargo features / Python feature build
+      description: |
+        Rust: e.g. default, `--no-default-features`, `excel`, `db_connectorx`, `arrow`.
+        Python: e.g. maturin/GHA-built wheel vs local `maturin develop`. Use **N/A** if not applicable.
+      placeholder: e.g. default features; or N/A (Python wheel from PyPI)
+
+  - type: textarea
+    id: dataset
+    attributes:
+      label: Dataset size & format
+      description: Rough row/column counts, file format, and whether schema was inferred.
+      placeholder: e.g. ~2M rows, 14 columns, Parquet, schema explicit
+    validations:
+      required: true
+
+  - type: textarea
+    id: flags-runtime
+    attributes:
+      label: Runtime options / Python dict options
+      description: Ingestion options, execution options, or Python `options` dict passed to APIs (redact secrets).
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / stack trace
+      description: Paste relevant output. For Rust, RUST_BACKTRACE=1 helps. For Python, include the full traceback.

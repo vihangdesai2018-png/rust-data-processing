@@ -10,8 +10,8 @@
 use std::convert::TryFrom;
 
 use arrow::array::{
-    Array, BooleanArray, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array,
-    StringArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+    Array, BooleanArray, Float32Array, Float64Array, Int8Array, Int16Array, Int32Array, Int64Array,
+    StringArray, UInt8Array, UInt16Array, UInt32Array, UInt64Array,
 };
 use arrow::datatypes::DataType as ArrowDataType;
 use arrow::record_batch::RecordBatch;
@@ -48,12 +48,14 @@ fn run_connectorx(conn: &str, queries: &[String]) -> IngestionResult<Vec<RecordB
         message: format!("invalid db connection string: {e}"),
     })?;
 
-    let cx_queries: Vec<CXQuery<String>> = queries.iter().map(|q| CXQuery::Naked(q.clone())).collect();
+    let cx_queries: Vec<CXQuery<String>> =
+        queries.iter().map(|q| CXQuery::Naked(q.clone())).collect();
 
-    let dest: ArrowDestination = get_arrow(&source_conn, None, &cx_queries, None).map_err(|e| IngestionError::Engine {
-        message: "failed to ingest from db via connectorx".to_string(),
-        source: Box::new(e),
-    })?;
+    let dest: ArrowDestination =
+        get_arrow(&source_conn, None, &cx_queries, None).map_err(|e| IngestionError::Engine {
+            message: "failed to ingest from db via connectorx".to_string(),
+            source: Box::new(e),
+        })?;
 
     dest.arrow().map_err(|e| IngestionError::Engine {
         message: "failed to extract Arrow record batches from connectorx destination".to_string(),
@@ -62,15 +64,19 @@ fn run_connectorx(conn: &str, queries: &[String]) -> IngestionResult<Vec<RecordB
 }
 
 fn infer_schema_from_record_batches_lossy(batches: &[RecordBatch]) -> IngestionResult<Schema> {
-    let first = batches.first().ok_or_else(|| IngestionError::SchemaMismatch {
-        message: "db query returned zero record batches".to_string(),
-    })?;
+    let first = batches
+        .first()
+        .ok_or_else(|| IngestionError::SchemaMismatch {
+            message: "db query returned zero record batches".to_string(),
+        })?;
 
     let mut fields = Vec::with_capacity(first.schema().fields().len());
     for f in first.schema().fields() {
         let dt = match f.data_type() {
             ArrowDataType::Boolean => DataType::Bool,
-            ArrowDataType::Float16 | ArrowDataType::Float32 | ArrowDataType::Float64 => DataType::Float64,
+            ArrowDataType::Float16 | ArrowDataType::Float32 | ArrowDataType::Float64 => {
+                DataType::Float64
+            }
             ArrowDataType::Int8
             | ArrowDataType::Int16
             | ArrowDataType::Int32
@@ -116,14 +122,24 @@ fn record_batch_to_dataset(batch: &RecordBatch, schema: &Schema) -> IngestionRes
         let mut row = Vec::with_capacity(schema.fields.len());
         for (field, idx) in schema.fields.iter().zip(col_idx.iter().copied()) {
             let arr = batch.column(idx);
-            row.push(arrow_value_to_value(arr.as_ref(), row_i, &field.data_type, &field.name)?);
+            row.push(arrow_value_to_value(
+                arr.as_ref(),
+                row_i,
+                &field.data_type,
+                &field.name,
+            )?);
         }
         out_rows.push(row);
     }
     Ok(DataSet::new(schema.clone(), out_rows))
 }
 
-fn arrow_value_to_value(arr: &dyn Array, row: usize, to: &DataType, name: &str) -> IngestionResult<Value> {
+fn arrow_value_to_value(
+    arr: &dyn Array,
+    row: usize,
+    to: &DataType,
+    name: &str,
+) -> IngestionResult<Value> {
     if arr.is_null(row) {
         return Ok(Value::Null);
     }

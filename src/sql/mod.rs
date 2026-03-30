@@ -122,10 +122,13 @@ impl Context {
 
     /// Execute a SQL query and return a lazy [`DataFrame`].
     pub fn execute(&mut self, sql: &str) -> IngestionResult<DataFrame> {
-        let lf = self.inner.execute(sql).map_err(|e| IngestionError::Engine {
-            message: "failed to execute sql query".to_string(),
-            source: Box::new(e),
-        })?;
+        let lf = self
+            .inner
+            .execute(sql)
+            .map_err(|e| IngestionError::Engine {
+                message: "failed to execute sql query".to_string(),
+                source: Box::new(e),
+            })?;
         Ok(DataFrame::from_lazyframe(lf))
     }
 }
@@ -135,4 +138,3 @@ impl Default for Context {
         Self::new()
     }
 }
-

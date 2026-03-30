@@ -30,7 +30,11 @@ impl Semaphore {
             g = self.cv.wait(g).expect("semaphore mutex poisoned");
         }
         *g -= 1;
-        if waited { start.elapsed() } else { Duration::ZERO }
+        if waited {
+            start.elapsed()
+        } else {
+            Duration::ZERO
+        }
     }
 
     /// Release one permit.
@@ -40,4 +44,3 @@ impl Semaphore {
         self.cv.notify_one();
     }
 }
-
