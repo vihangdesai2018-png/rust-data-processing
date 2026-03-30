@@ -49,6 +49,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      # Align host rustc with rust-toolchain.toml (manylinux builds use Docker Rust; Windows/macOS use the runner).
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
       - name: "Build wheels (Linux: manylinux + sdist)"
         if: matrix.os == 'ubuntu-latest'
         uses: PyO3/maturin-action@v1
