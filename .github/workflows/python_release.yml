@@ -49,7 +49,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Build wheels (Linux: manylinux + sdist)
+      - name: "Build wheels (Linux: manylinux + sdist)"
         if: matrix.os == 'ubuntu-latest'
         uses: PyO3/maturin-action@v1
         with:
