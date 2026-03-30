@@ -1,6 +1,6 @@
 # Rust quick start and examples
 
-This page collects **Rust** snippets for the `rust-data-processing` crate. The [repository README](../../README.md) leads with Python; for the conceptual API surface see [`API.md`](../../API.md).
+This page collects **Rust** snippets for the `rust-data-processing` crate. The [repository README](../../README.md) leads with Python; Python mirrors many of these examples in [`docs/python/README.md`](../python/README.md). For the conceptual API surface see [`API.md`](../../API.md).
 
 ## Quick start (library usage)
 

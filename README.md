@@ -10,6 +10,7 @@
 | **Rust crate on crates.io** | [docs.rs — rust-data-processing](https://docs.rs/rust-data-processing) *(populates after the first successful publish)* |
 | **Markdown API guides** | [`API.md`](API.md) (Rust); Python: [`python-wrapper/API.md`](python-wrapper/API.md) |
 | **Rust examples (this repo)** | [`docs/rust/README.md`](docs/rust/README.md) — `Cargo.toml`, ingestion, DataFrame/SQL, cookbook, execution, benchmarks |
+| **Python examples (this repo)** | [`docs/python/README.md`](docs/python/README.md) — same topics via `rust_data_processing` |
 
 ## Quick start (Python)
 
@@ -49,7 +50,7 @@ pip install rust-data-processing
 
 Use the same `import rust_data_processing as rdp` pattern; point `ingest_from_path` at your own CSV, JSON, or Parquet files and schema.
 
-**Rust:** [`docs/rust/README.md`](docs/rust/README.md) has copy-paste examples for `Cargo.toml`, ingestion, Polars-backed pipelines, SQL, transforms, profiling, validation, execution, and benchmarks. The conceptual API overview is in [`API.md`](API.md).
+**Rust:** [`docs/rust/README.md`](docs/rust/README.md) has copy-paste examples for `Cargo.toml`, ingestion, Polars-backed pipelines, SQL, transforms, profiling, validation, execution, and benchmarks. **Python (expanded):** [`docs/python/README.md`](docs/python/README.md). The conceptual Rust API overview is in [`API.md`](API.md).
 
 Generate the same HTML as CI locally: `./scripts/build_docs.ps1` (Rust only) or `./scripts/build_docs.ps1 -All` (Rust + Python → `_site/python/`). Maintainer notes: [`Planning/DOCUMENTATION.md`](Planning/DOCUMENTATION.md).
 
