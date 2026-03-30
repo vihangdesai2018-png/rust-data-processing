@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>rust-data-processing — documentation</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --fg: #111;
+        --muted: #444;
+        --bg: #fff;
+        --card: #f6f8fa;
+        --border: #d0d7de;
+        --link: #0969da;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --fg: #e6edf3;
+          --muted: #8b949e;
+          --bg: #0d1117;
+          --card: #161b22;
+          --border: #30363d;
+          --link: #58a6ff;
+        }
+      }
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+        line-height: 1.5;
+        margin: 0;
+        padding: 2rem clamp(1rem, 4vw, 3rem);
+        color: var(--fg);
+        background: var(--bg);
+        max-width: 56rem;
+      }
+      h1 {
+        font-size: 1.75rem;
+        margin-top: 0;
+      }
+      p.lead {
+        color: var(--muted);
+        font-size: 1.05rem;
+      }
+      ul.cards {
+        list-style: none;
+        padding: 0;
+        margin: 2rem 0 0;
+        display: grid;
+        gap: 1rem;
+      }
+      @media (min-width: 36rem) {
+        ul.cards {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      ul.cards li {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem 1.25rem;
+        background: var(--card);
+      }
+      ul.cards a.main {
+        font-weight: 600;
+        color: var(--link);
+        text-decoration: none;
+        font-size: 1.1rem;
+      }
+      ul.cards a.main:hover {
+        text-decoration: underline;
+      }
+      ul.cards p {
+        margin: 0.5rem 0 0;
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+      .examples {
+        margin-top: 2.5rem;
+      }
+      .examples h2 {
+        font-size: 1.25rem;
+      }
+      pre {
+        overflow: auto;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--card);
+        font-size: 0.85rem;
+        line-height: 1.4;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      }
+      footer {
+        margin-top: 2.5rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+      footer a {
+        color: var(--link);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>rust-data-processing documentation</h1>
+    <p class="lead">
+      Browse API reference for the Rust crate (rustdoc) and the Python bindings (pdoc). This site is generated on every push to
+      <code>main</code>.
+    </p>
+
+    <ul class="cards">
+      <li>
+        <a class="main" href="rust/rust_data_processing/index.html">Rust API (rustdoc)</a>
+        <p>Ingestion, pipelines, SQL, profiling, validation, and processing helpers.</p>
+      </li>
+      <li>
+        <a class="main" href="python/index.html">Python API (pdoc)</a>
+        <p>
+          PyO3 bindings: <code>ingest_from_path</code>, <code>DataFrame</code>, validation, profiling, and more.
+        </p>
+      </li>
+    </ul>
+
+    <section class="examples" aria-labelledby="examples-heading">
+      <h2 id="examples-heading">Minimal examples</h2>
+
+      <h3>Rust</h3>
+      <pre><code>use rust_data_processing::ingestion::{ingest_from_path, IngestionOptions};
+use rust_data_processing::types::{DataType, Field, Schema};
+
+let schema = Schema::new(vec![
+    Field::new("id", DataType::Int64),
+    Field::new("name", DataType::Utf8),
+]);
+let ds = ingest_from_path("tests/fixtures/people.csv", &amp;schema, &amp;IngestionOptions::default())?;
+println!("rows={}", ds.row_count());</code></pre>
+
+      <h3>Python</h3>
+      <pre><code>import rust_data_processing as rdp
+
+schema = [
+    {"name": "id", "data_type": "int64"},
+    {"name": "name", "data_type": "utf8"},
+]
+ds = rdp.ingest_from_path("path/to/data.csv", schema, {"format": "csv"})
+print("rows", ds.row_count())</code></pre>
+    </section>
+
+    <footer>
+      <p>
+        Published crate docs (Rust) also appear on
+        <a href="https://docs.rs/rust-data-processing">docs.rs</a>
+        after release. Repository:
+        <a href="https://github.com/vihangdesai2018-png/rust-data-processing">GitHub</a>.
+      </p>
+    </footer>
+  </body>
+</html>

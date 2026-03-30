@@ -189,4 +189,3 @@ fn sql_missing_column_returns_actionable_error() {
     };
     assert!(err.to_ascii_lowercase().contains("missing"));
 }
-

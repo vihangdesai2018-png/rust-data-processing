@@ -1,0 +1,109 @@
+# Build + test the Rust library on every PR and on pushes to main.
+# (Python wrapper is covered by python_ci.yml.)
+
+name: Rust CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  # Optional: keep dependency advisories fresh even without PR activity.
+  schedule:
+    - cron: "0 3 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependency-review:
+    name: Security — dependency review (PR)
+    runs-on: ubuntu-latest
+    # GitHub only supports dependency review on:
+    # - public repositories, OR
+    # - private repositories with GitHub Advanced Security enabled.
+    #
+    # This also requires **Dependency graph** to be enabled in the repo settings.
+    #
+    # We keep this check **opt-in** to avoid permanent red builds when the repo settings
+    # (Dependency graph / GHAS) are not enabled yet.
+    #
+    # Enable by setting repo variable: DEPENDENCY_REVIEW_ENABLED=true
+    if: github.event_name == 'pull_request' && vars.DEPENDENCY_REVIEW_ENABLED == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Dependency review
+        uses: actions/dependency-review-action@v4
+
+  audit:
+    name: Security — RustSec cargo audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Audit Rust dependencies (RustSec)
+        uses: actions-rust-lang/audit@v1
+        with:
+          # Do not try to open/update GitHub Issues from CI.
+          createIssues: false
+
+  fmt-clippy-test:
+    name: ${{ matrix.os }} — fmt, clippy, tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-targets: "true"
+
+      - name: cargo fmt
+        run: cargo fmt --all -- --check
+
+      # Omit `-D warnings` until the crate is clippy-clean under the latest stable lint set.
+      - name: cargo clippy
+        run: cargo clippy --locked --all-targets
+
+      - name: cargo test (default features)
+        run: cargo test --locked
+
+      - name: cargo test (doctests)
+        run: cargo test --locked --doc
+
+  # `db_connectorx` omitted: ConnectorX pulls OpenSSL (Perl / vendored build pain on Windows).
+  # Local parity: `cargo test --locked --features ci_expanded`
+  expanded-features-ubuntu:
+    name: ubuntu — ci_expanded (no db_connectorx)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-targets: "true"
+
+      - name: cargo test (--features ci_expanded)
+        run: cargo test --locked --features ci_expanded

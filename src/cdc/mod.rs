@@ -111,4 +111,3 @@ pub trait CdcSource {
     /// - `Ok(Some(batch))` yields a non-empty batch.
     fn next_batch(&mut self) -> Result<Option<Vec<CdcEvent>>, Self::Error>;
 }
-

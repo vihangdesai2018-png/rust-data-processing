@@ -1,13 +1,13 @@
 use std::fs::{self, File};
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
-use criterion::{black_box, criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
+use criterion::{BatchSize, BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 
-use rust_data_processing::ingestion::{ingest_from_path, infer_schema_from_path, IngestionOptions};
-use rust_data_processing::processing::{reduce, ReduceOp};
+use rust_data_processing::ingestion::{IngestionOptions, infer_schema_from_path, ingest_from_path};
+use rust_data_processing::processing::{ReduceOp, reduce};
 use rust_data_processing::types::{DataType, Field, Schema};
 
 use polars::prelude::{Column, DataFrame, NamedFrom, ParquetWriter, Series};
@@ -74,12 +74,29 @@ fn build_fixtures() -> std::io::Result<Fixtures> {
     }
 
     let csv_rotating = ensure_copies(&csv, &dir, "data_20000_copy", "csv", ROTATING_COPIES)?;
-    let json_array_rotating = ensure_copies(&json_array, &dir, "data_20000_copy", "json", ROTATING_COPIES)?;
-    let ndjson_rotating = ensure_copies(&ndjson, &dir, "data_20000_copy", "ndjson", ROTATING_COPIES)?;
-    let json_nested_rotating =
-        ensure_copies(&json_nested, &dir, "nested_20000_copy", "json", ROTATING_COPIES)?;
-    let parquet_rotating =
-        ensure_copies(&parquet, &dir, "data_20000_copy", "parquet", ROTATING_COPIES)?;
+    let json_array_rotating = ensure_copies(
+        &json_array,
+        &dir,
+        "data_20000_copy",
+        "json",
+        ROTATING_COPIES,
+    )?;
+    let ndjson_rotating =
+        ensure_copies(&ndjson, &dir, "data_20000_copy", "ndjson", ROTATING_COPIES)?;
+    let json_nested_rotating = ensure_copies(
+        &json_nested,
+        &dir,
+        "nested_20000_copy",
+        "json",
+        ROTATING_COPIES,
+    )?;
+    let parquet_rotating = ensure_copies(
+        &parquet,
+        &dir,
+        "data_20000_copy",
+        "parquet",
+        ROTATING_COPIES,
+    )?;
     #[cfg(feature = "excel_test_writer")]
     let xlsx_rotating = ensure_copies(&xlsx, &dir, "data_20000_copy", "xlsx", ROTATING_COPIES)?;
 
@@ -101,7 +118,13 @@ fn build_fixtures() -> std::io::Result<Fixtures> {
     })
 }
 
-fn ensure_copies(src: &Path, dir: &Path, stem: &str, ext: &str, n: usize) -> std::io::Result<Vec<PathBuf>> {
+fn ensure_copies(
+    src: &Path,
+    dir: &Path,
+    stem: &str,
+    ext: &str,
+    n: usize,
+) -> std::io::Result<Vec<PathBuf>> {
     let mut out = Vec::with_capacity(n);
     for i in 0..n {
         let p = dir.join(format!("{stem}_{i:02}.{ext}"));
@@ -278,9 +301,12 @@ fn bench_ingestion(c: &mut Criterion) {
 
         // "Warm": same path each iteration (OS cache likely warm after first).
         group.bench_function(BenchmarkId::new(id, "warm_known_schema"), |b| {
-            let schema = schema_known.as_ref().expect("schema required for known_schema");
+            let schema = schema_known
+                .as_ref()
+                .expect("schema required for known_schema");
             b.iter(|| {
-                let ds = ingest_from_path(black_box(warm_path), black_box(schema), black_box(opts)).unwrap();
+                let ds = ingest_from_path(black_box(warm_path), black_box(schema), black_box(opts))
+                    .unwrap();
                 black_box(ds)
             })
         });
@@ -288,21 +314,26 @@ fn bench_ingestion(c: &mut Criterion) {
         group.bench_function(BenchmarkId::new(id, "warm_infer_schema"), |b| {
             b.iter(|| {
                 let schema = infer_schema_from_path(black_box(warm_path), black_box(opts)).unwrap();
-                let ds = ingest_from_path(black_box(warm_path), black_box(&schema), black_box(opts)).unwrap();
+                let ds =
+                    ingest_from_path(black_box(warm_path), black_box(&schema), black_box(opts))
+                        .unwrap();
                 black_box(ds)
             })
         });
 
         // "Cold-like": rotate across many identical copies to reduce repeated-file locality.
         group.bench_function(BenchmarkId::new(id, "rotating_known_schema"), |b| {
-            let schema = schema_known.as_ref().expect("schema required for known_schema");
+            let schema = schema_known
+                .as_ref()
+                .expect("schema required for known_schema");
             b.iter_batched(
                 || {
                     let i = ROT_IDX.fetch_add(1, Ordering::Relaxed) % rotating_paths.len();
                     rotating_paths[i].clone()
                 },
                 |p| {
-                    let ds = ingest_from_path(black_box(p), black_box(schema), black_box(opts)).unwrap();
+                    let ds =
+                        ingest_from_path(black_box(p), black_box(schema), black_box(opts)).unwrap();
                     black_box(ds)
                 },
                 BatchSize::SmallInput,
@@ -317,7 +348,8 @@ fn bench_ingestion(c: &mut Criterion) {
                 },
                 |p| {
                     let schema = infer_schema_from_path(black_box(&p), black_box(opts)).unwrap();
-                    let ds = ingest_from_path(black_box(p), black_box(&schema), black_box(opts)).unwrap();
+                    let ds = ingest_from_path(black_box(p), black_box(&schema), black_box(opts))
+                        .unwrap();
                     black_box(ds)
                 },
                 BatchSize::SmallInput,
@@ -354,25 +386,34 @@ fn bench_ingestion(c: &mut Criterion) {
     group.bench_function(BenchmarkId::new("json_nested", "warm_known_schema"), |b| {
         let schema = schema_nested();
         b.iter(|| {
-            let ds = ingest_from_path(black_box(&fx.json_nested), black_box(&schema), black_box(&opts)).unwrap();
+            let ds = ingest_from_path(
+                black_box(&fx.json_nested),
+                black_box(&schema),
+                black_box(&opts),
+            )
+            .unwrap();
             black_box(ds)
         })
     });
-    group.bench_function(BenchmarkId::new("json_nested", "rotating_known_schema"), |b| {
-        static ROT_IDX: AtomicUsize = AtomicUsize::new(0);
-        let schema = schema_nested();
-        b.iter_batched(
-            || {
-                let i = ROT_IDX.fetch_add(1, Ordering::Relaxed) % fx.json_nested_rotating.len();
-                fx.json_nested_rotating[i].clone()
-            },
-            |p| {
-                let ds = ingest_from_path(black_box(p), black_box(&schema), black_box(&opts)).unwrap();
-                black_box(ds)
-            },
-            BatchSize::SmallInput,
-        )
-    });
+    group.bench_function(
+        BenchmarkId::new("json_nested", "rotating_known_schema"),
+        |b| {
+            static ROT_IDX: AtomicUsize = AtomicUsize::new(0);
+            let schema = schema_nested();
+            b.iter_batched(
+                || {
+                    let i = ROT_IDX.fetch_add(1, Ordering::Relaxed) % fx.json_nested_rotating.len();
+                    fx.json_nested_rotating[i].clone()
+                },
+                |p| {
+                    let ds = ingest_from_path(black_box(p), black_box(&schema), black_box(&opts))
+                        .unwrap();
+                    black_box(ds)
+                },
+                BatchSize::SmallInput,
+            )
+        },
+    );
 
     bench_case(
         &mut group,
@@ -412,8 +453,10 @@ fn bench_ingest_then_reduce(c: &mut Criterion) {
     ) {
         group.bench_function(BenchmarkId::new(id, "known_schema"), |b| {
             b.iter(|| {
-                let ds = ingest_from_path(black_box(path), black_box(schema), black_box(opts)).unwrap();
-                let out = reduce(black_box(&ds), black_box("score"), black_box(ReduceOp::Sum)).unwrap();
+                let ds =
+                    ingest_from_path(black_box(path), black_box(schema), black_box(opts)).unwrap();
+                let out =
+                    reduce(black_box(&ds), black_box("score"), black_box(ReduceOp::Sum)).unwrap();
                 black_box(out)
             })
         });
@@ -421,8 +464,10 @@ fn bench_ingest_then_reduce(c: &mut Criterion) {
         group.bench_function(BenchmarkId::new(id, "infer_schema"), |b| {
             b.iter(|| {
                 let inferred = infer_schema_from_path(black_box(path), black_box(opts)).unwrap();
-                let ds = ingest_from_path(black_box(path), black_box(&inferred), black_box(opts)).unwrap();
-                let out = reduce(black_box(&ds), black_box("score"), black_box(ReduceOp::Sum)).unwrap();
+                let ds = ingest_from_path(black_box(path), black_box(&inferred), black_box(opts))
+                    .unwrap();
+                let out =
+                    reduce(black_box(&ds), black_box("score"), black_box(ReduceOp::Sum)).unwrap();
                 black_box(out)
             })
         });
@@ -440,4 +485,3 @@ fn bench_ingest_then_reduce(c: &mut Criterion) {
 
 criterion_group!(benches, bench_ingestion, bench_ingest_then_reduce);
 criterion_main!(benches);
-

@@ -1,8 +1,9 @@
 /target
+/_site
 **/*.rs.bk
 HighLevelDevelopmentPlan.txt
 epcis_and_stories.txt
 test_run.log
 test_run_*.log
 benchmarks.log
-benches/pipelines.rs
+Planning/Post_README.md

@@ -138,21 +138,29 @@ impl TransformSpec {
                     df.drop(&cols)?
                 }
                 TransformStep::Rename { pairs } => {
-                    let pairs_ref: Vec<(&str, &str)> =
-                        pairs.iter().map(|(a, b)| (a.as_str(), b.as_str())).collect();
+                    let pairs_ref: Vec<(&str, &str)> = pairs
+                        .iter()
+                        .map(|(a, b)| (a.as_str(), b.as_str()))
+                        .collect();
                     df.rename(&pairs_ref)?
                 }
                 TransformStep::Cast { column, to, mode } => {
                     df.cast_with_mode(column, to.clone(), *mode)?
                 }
                 TransformStep::FillNull { column, value } => df.fill_null(column, value.clone())?,
-                TransformStep::WithLiteral { name, value } => df.with_literal(name, value.clone())?,
+                TransformStep::WithLiteral { name, value } => {
+                    df.with_literal(name, value.clone())?
+                }
                 TransformStep::DeriveMulF64 {
                     name,
                     source,
                     factor,
                 } => df.with_mul_f64(name, source, *factor)?,
-                TransformStep::DeriveAddF64 { name, source, delta } => df.with_add_f64(name, source, *delta)?,
+                TransformStep::DeriveAddF64 {
+                    name,
+                    source,
+                    delta,
+                } => df.with_add_f64(name, source, *delta)?,
             };
         }
 
@@ -283,16 +291,20 @@ pub mod arrow {
         })
     }
 
-    pub fn record_batch_to_dataset(batch: &RecordBatch, schema: &Schema) -> IngestionResult<DataSet> {
+    pub fn record_batch_to_dataset(
+        batch: &RecordBatch,
+        schema: &Schema,
+    ) -> IngestionResult<DataSet> {
         // Map schema fields to column indices by name.
         let mut col_idx = Vec::with_capacity(schema.fields.len());
         for f in &schema.fields {
-            let idx = batch
-                .schema()
-                .index_of(&f.name)
-                .map_err(|_| IngestionError::SchemaMismatch {
-                    message: format!("missing required column '{}'", f.name),
-                })?;
+            let idx =
+                batch
+                    .schema()
+                    .index_of(&f.name)
+                    .map_err(|_| IngestionError::SchemaMismatch {
+                        message: format!("missing required column '{}'", f.name),
+                    })?;
             col_idx.push(idx);
         }
 
@@ -304,12 +316,11 @@ pub mod arrow {
                 let arr = batch.column(idx);
                 let v = match field.data_type {
                     DataType::Int64 => {
-                        let a = arr
-                            .as_any()
-                            .downcast_ref::<Int64Array>()
-                            .ok_or_else(|| IngestionError::SchemaMismatch {
+                        let a = arr.as_any().downcast_ref::<Int64Array>().ok_or_else(|| {
+                            IngestionError::SchemaMismatch {
                                 message: format!("arrow column '{}' is not Int64", field.name),
-                            })?;
+                            }
+                        })?;
                         if a.is_null(row_i) {
                             Value::Null
                         } else {
@@ -317,12 +328,11 @@ pub mod arrow {
                         }
                     }
                     DataType::Float64 => {
-                        let a = arr
-                            .as_any()
-                            .downcast_ref::<Float64Array>()
-                            .ok_or_else(|| IngestionError::SchemaMismatch {
+                        let a = arr.as_any().downcast_ref::<Float64Array>().ok_or_else(|| {
+                            IngestionError::SchemaMismatch {
                                 message: format!("arrow column '{}' is not Float64", field.name),
-                            })?;
+                            }
+                        })?;
                         if a.is_null(row_i) {
                             Value::Null
                         } else {
@@ -330,12 +340,11 @@ pub mod arrow {
                         }
                     }
                     DataType::Bool => {
-                        let a = arr
-                            .as_any()
-                            .downcast_ref::<BooleanArray>()
-                            .ok_or_else(|| IngestionError::SchemaMismatch {
+                        let a = arr.as_any().downcast_ref::<BooleanArray>().ok_or_else(|| {
+                            IngestionError::SchemaMismatch {
                                 message: format!("arrow column '{}' is not Boolean", field.name),
-                            })?;
+                            }
+                        })?;
                         if a.is_null(row_i) {
                             Value::Null
                         } else {
@@ -381,9 +390,11 @@ pub mod serde_interop {
     where
         T: serde::Serialize + for<'de> serde::Deserialize<'de>,
     {
-        let fields = Vec::<FieldRef>::from_type::<T>(TracingOptions::default()).map_err(|e| IngestionError::Engine {
-            message: "failed to trace Arrow schema from type".to_string(),
-            source: Box::new(e),
+        let fields = Vec::<FieldRef>::from_type::<T>(TracingOptions::default()).map_err(|e| {
+            IngestionError::Engine {
+                message: "failed to trace Arrow schema from type".to_string(),
+                source: Box::new(e),
+            }
         })?;
 
         serde_arrow::to_record_batch(&fields, records).map_err(|e| IngestionError::Engine {
@@ -478,4 +489,3 @@ mod tests {
         assert_eq!(out.rows[1][3], Value::Utf8("A".to_string()));
     }
 }
-

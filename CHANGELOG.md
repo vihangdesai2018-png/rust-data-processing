@@ -1,0 +1,23 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.1.0] - 2026-03-20
+
+### Added
+
+- Initial crates.io release of `rust-data-processing`.
+- Schema-first ingestion: CSV, JSON / NDJSON (nested dot paths), Parquet; Excel via `excel` feature.
+- In-memory `DataSet` model (`types`) with `Int64`, `Float64`, `Bool`, `Utf8`, `Null`.
+- `processing`: `filter`, `map`, `reduce` with `ReduceOp` (count, sum, min/max, mean, variance, std dev, sum-squares, L2 norm, count-distinct).
+- `processing::multi`: `feature_wise_mean_std`, `arg_max_row`, `arg_min_row`, `top_k_by_frequency`.
+- Polars-backed `pipeline::DataFrame` (lazy plan, `collect` to `DataSet`), `group_by` with `Agg`, joins, casts, filters.
+- SQL over `DataFrame` (`sql` feature, default-on).
+- `execution` engine: parallel filter/map, metrics, observers.
+- `profiling`, `validation`, `outliers`, `transform` (TransformSpec), `cdc` boundary types.
+- Optional `db_connectorx` for DB → Arrow → `DataSet` ingestion.
+
+[0.1.0]: https://github.com/vihangdesai2018-png/rust-data-processing/releases/tag/v0.1.0

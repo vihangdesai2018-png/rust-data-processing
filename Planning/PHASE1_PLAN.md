@@ -20,14 +20,14 @@ How to use:
 | - [x] 7.3.2 End-user transformation schema/spec (mapping + serde + expr-plan wrapper) | - [ ]  | - [x] 0.3.4 Refactor transforms/pipeline APIs to delegate to Polars lazy plan |
 | - [x] 7.3.3 Direct DB ingestion (ConnectorX → Polars/Arrow → `DataSet`) (feature-gated) | - [ ]  | - [x] 0.3.4 Benchmarks suite: ingestion (20k) + map/reduce + end-to-end ingest→reduce |
 | - [x] 7.3.4 CDC feasibility spike + interface boundary (Phase 2 candidate) | - [ ]  | - [x] 0.3.4 Bench dimensions: warm vs rotating files, schema known vs inferred, JSON array vs NDJSON vs nested, Excel variability (feature-gated) |
-| - [ ] 10.1.1 Profiling metrics set (nulls, distinct, quantiles, etc.) | - [ ]  | - [x] 7.1.1 Public API shape + naming conventions (ergonomic surface) |
-| - [ ] 10.1.2 Sampling/streaming-friendly profiling modes | - [ ]  | - [x] 7.1.2 Builder-based configuration (avoid long arg lists) |
-| - [ ] 10.1.3 Profile report formats (JSON + Markdown) | - [ ]  | - [x] 7.1.3 Error model + diagnostics (actionable messages) |
-| - [ ] 10.2.1 Validation DSL (schema + rule declarations) | - [ ]  | - [ ]  |
-| - [ ] 10.2.2 Built-in checks (ranges, uniqueness, regex, nullability) | - [ ]  | - [ ]  |
-| - [ ] 10.2.3 Severity handling (warn vs fail) + reporting | - [ ]  | - [ ]  |
-| - [ ] 10.3.1 Outlier detection primitives (IQR / z-score / MAD) | - [ ]  | - [ ]  |
-| - [ ] 10.3.2 Explainable outputs (why flagged) | - [ ]  | - [ ]  |
+| - [x] 10.1.1 Profiling metrics set (nulls, distinct, quantiles, etc.) | - [ ]  | - [x] 7.1.1 Public API shape + naming conventions (ergonomic surface) |
+| - [x] 10.1.2 Sampling/streaming-friendly profiling modes | - [ ]  | - [x] 7.1.2 Builder-based configuration (avoid long arg lists) |
+| - [x] 10.1.3 Profile report formats (JSON + Markdown) | - [ ]  | - [x] 7.1.3 Error model + diagnostics (actionable messages) |
+| - [x] 10.2.1 Validation DSL (schema + rule declarations) | - [ ]  | - [ ]  |
+| - [x] 10.2.2 Built-in checks (ranges, uniqueness, regex, nullability) | - [ ]  | - [ ]  |
+| - [x] 10.2.3 Severity handling (warn vs fail) + reporting | - [ ]  | - [ ]  |
+| - [x] 10.3.1 Outlier detection primitives (IQR / z-score / MAD) | - [ ]  | - [ ]  |
+| - [x] 10.3.2 Explainable outputs (why flagged) | - [ ]  | - [ ]  |
 
 ## Engine support checks (per Phase 1 unit)
 
@@ -134,29 +134,45 @@ Use this as a short “research checklist” while implementing each item.
   - **Done**: Deep test validates sampling determinism on realistic fixtures.
   - **Note**: Random sampling is intentionally not provided in Phase 1 because Polars Rust LazyFrame lacks a simple row-wise random sampling API; head sampling avoids streaming assumptions.
 
-- **10.1.3 Profile report formats**
-  - **Check**: No engine dependency; pure product-layer.
-  - **Preferred (Phase 1)**: Engine-agnostic.
+- [x] **10.1.3 Profile report formats**
+  - **Done**: Added stable renderers for `profiling::ProfileReport`:
+    - `profiling::render_profile_report_json`
+    - `profiling::render_profile_report_markdown`
+  - **Done**: Unit tests validate both renderers.
+  - **Preferred (Phase 1)**: Engine-agnostic formatting; report types stay crate-owned.
 
-- **10.2.1 Validation DSL / API**
-  - **Check**: How checks compile to Polars expressions (preferred) vs requiring row-wise UDFs (avoid where possible).
-  - **Preferred (Phase 1)**: Expression-first checks (vectorized).
+- [x] **10.2.1 Validation DSL / API**
+  - **Done**: Implemented `validation` module with `ValidationSpec` + `Check` DSL and `validate_dataset` / `validate_frame`.
+  - **Preferred (Phase 1)**: Expression-first checks compiled to Polars expressions; results collected once (plus optional example collection).
 
-- **10.2.2 Built-in checks**
-  - **Check**: For each check, confirm Polars support (regex, set membership, uniqueness, etc.) in Rust API.
-  - **Preferred (Phase 1)**: Polars expressions; custom only when unavoidable.
+- [x] **10.2.2 Built-in checks**
+  - **Done**: Phase 1 built-ins shipped:
+    - `NotNull`
+    - `RangeF64`
+    - `RegexMatch`
+    - `InSet`
+    - `Unique` (duplicates among non-null)
 
-- **10.2.3 Severity + reporting**
-  - **Check**: No engine dependency; pure product-layer.
-  - **Preferred (Phase 1)**: Engine-agnostic.
+- [x] **10.2.3 Severity + reporting**
+  - **Done**: Added `Severity` + `ValidationReport` summaries and renderers:
+    - `validation::render_validation_report_json`
+    - `validation::render_validation_report_markdown`
+  - **Done**: Unit tests + deep test smoke coverage on realistic fixtures.
+  - **Preferred (Phase 1)**: Engine-agnostic report formats; no engine types in public API.
 
-- **10.3.1 Outlier detection primitives**
-  - **Check**: Can we compute required stats with Polars expressions/aggregations without full collect?
-  - **Preferred (Phase 1)**: Polars-first; document when sampling/materialization occurs.
+- [x] **10.3.1 Outlier detection primitives**
+  - **Done**: Implemented `outliers` module with Polars-backed primitives:
+    - `ZScore { threshold }`
+    - `Iqr { k }`
+    - `Mad { threshold }`
+  - **Done**: Supports deterministic sampling via `profiling::SamplingMode`.
 
-- **10.3.2 Explainability outputs**
-  - **Check**: No engine dependency; ensure reports include thresholds + stats used.
-  - **Preferred (Phase 1)**: Engine-agnostic.
+- [x] **10.3.2 Explainability outputs**
+  - **Done**: `OutlierReport` includes computed stats/fences and example outlier values.
+  - **Done**: Renderers added:
+    - `outliers::render_outlier_report_json`
+    - `outliers::render_outlier_report_markdown`
+  - **Done**: Unit tests + deep test smoke coverage.
 
 ## Notes / decisions (keep short)
 

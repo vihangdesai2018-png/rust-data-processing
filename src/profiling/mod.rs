@@ -172,9 +172,15 @@ fn render_columns_markdown(cols: &[ColumnProfile]) -> String {
         };
         let (min, max, mean) = match &c.numeric {
             Some(n) => (
-                n.min.map(|v| format!("{v:.4}")).unwrap_or_else(|| "—".to_string()),
-                n.max.map(|v| format!("{v:.4}")).unwrap_or_else(|| "—".to_string()),
-                n.mean.map(|v| format!("{v:.4}")).unwrap_or_else(|| "—".to_string()),
+                n.min
+                    .map(|v| format!("{v:.4}"))
+                    .unwrap_or_else(|| "—".to_string()),
+                n.max
+                    .map(|v| format!("{v:.4}"))
+                    .unwrap_or_else(|| "—".to_string()),
+                n.mean
+                    .map(|v| format!("{v:.4}"))
+                    .unwrap_or_else(|| "—".to_string()),
             ),
             None => ("—".to_string(), "—".to_string(), "—".to_string()),
         };
@@ -201,10 +207,9 @@ pub fn profile_frame(df: &DataFrame, options: &ProfileOptions) -> IngestionResul
         SamplingMode::Head(n) => lf.limit(n as IdxSize),
     };
 
-    let schema = lf
-        .clone()
-        .collect_schema()
-        .map_err(|e| crate::ingestion::polars_bridge::polars_error_to_ingestion("failed to collect schema", e))?;
+    let schema = lf.clone().collect_schema().map_err(|e| {
+        crate::ingestion::polars_bridge::polars_error_to_ingestion("failed to collect schema", e)
+    })?;
 
     let cols: Vec<(String, DataType, bool)> = schema
         .iter_fields()
@@ -229,7 +234,12 @@ pub fn profile_frame(df: &DataFrame, options: &ProfileOptions) -> IngestionResul
     for (name, _dt, is_numeric) in &cols {
         exprs.push(col(name).null_count().alias(&format!("{name}__nulls")));
         // Distinct count excluding nulls (common profiling expectation).
-        exprs.push(col(name).drop_nulls().n_unique().alias(&format!("{name}__distinct")));
+        exprs.push(
+            col(name)
+                .drop_nulls()
+                .n_unique()
+                .alias(&format!("{name}__distinct")),
+        );
         if *is_numeric {
             exprs.push(col(name).min().alias(&format!("{name}__min")));
             exprs.push(col(name).max().alias(&format!("{name}__max")));
@@ -250,13 +260,15 @@ pub fn profile_frame(df: &DataFrame, options: &ProfileOptions) -> IngestionResul
         }
     }
 
-    let agg = lf
-        .select(exprs)
-        .collect()
-        .map_err(|e| crate::ingestion::polars_bridge::polars_error_to_ingestion("failed to compute profile", e))?;
+    let agg = lf.select(exprs).collect().map_err(|e| {
+        crate::ingestion::polars_bridge::polars_error_to_ingestion("failed to compute profile", e)
+    })?;
 
     let row_count_col = agg.column("__rows").map_err(|e| {
-        crate::ingestion::polars_bridge::polars_error_to_ingestion("profiling missing __rows column", e)
+        crate::ingestion::polars_bridge::polars_error_to_ingestion(
+            "profiling missing __rows column",
+            e,
+        )
     })?;
     let row_count = any_to_usize(row_count_col.as_materialized_series(), 0)?.unwrap_or(0);
 
@@ -281,19 +293,34 @@ pub fn profile_frame(df: &DataFrame, options: &ProfileOptions) -> IngestionResul
         let numeric = if is_numeric {
             let min = any_to_f64(
                 agg.column(&format!("{name}__min"))
-                    .map_err(|e| crate::ingestion::polars_bridge::polars_error_to_ingestion("profiling missing min", e))?
+                    .map_err(|e| {
+                        crate::ingestion::polars_bridge::polars_error_to_ingestion(
+                            "profiling missing min",
+                            e,
+                        )
+                    })?
                     .as_materialized_series(),
                 0,
             )?;
             let max = any_to_f64(
                 agg.column(&format!("{name}__max"))
-                    .map_err(|e| crate::ingestion::polars_bridge::polars_error_to_ingestion("profiling missing max", e))?
+                    .map_err(|e| {
+                        crate::ingestion::polars_bridge::polars_error_to_ingestion(
+                            "profiling missing max",
+                            e,
+                        )
+                    })?
                     .as_materialized_series(),
                 0,
             )?;
             let mean = any_to_f64(
                 agg.column(&format!("{name}__mean"))
-                    .map_err(|e| crate::ingestion::polars_bridge::polars_error_to_ingestion("profiling missing mean", e))?
+                    .map_err(|e| {
+                        crate::ingestion::polars_bridge::polars_error_to_ingestion(
+                            "profiling missing mean",
+                            e,
+                        )
+                    })?
                     .as_materialized_series(),
                 0,
             )?;
@@ -353,12 +380,10 @@ fn polars_dtype_to_profile_dtype(dt: &polars::datatypes::DataType) -> (DataType,
 }
 
 fn any_to_usize(s: &Series, idx: usize) -> IngestionResult<Option<usize>> {
-    let av = s
-        .get(idx)
-        .map_err(|e| IngestionError::Engine {
-            message: "failed to read profile value".to_string(),
-            source: Box::new(e),
-        })?;
+    let av = s.get(idx).map_err(|e| IngestionError::Engine {
+        message: "failed to read profile value".to_string(),
+        source: Box::new(e),
+    })?;
     Ok(match av {
         AnyValue::Null => None,
         AnyValue::Int64(v) => Some(v.max(0) as usize),
@@ -372,18 +397,16 @@ fn any_to_usize(s: &Series, idx: usize) -> IngestionResult<Option<usize>> {
         other => {
             return Err(IngestionError::SchemaMismatch {
                 message: format!("expected integer-like profile value, got {other}"),
-            })
+            });
         }
     })
 }
 
 fn any_to_f64(s: &Series, idx: usize) -> IngestionResult<Option<f64>> {
-    let av = s
-        .get(idx)
-        .map_err(|e| IngestionError::Engine {
-            message: "failed to read profile value".to_string(),
-            source: Box::new(e),
-        })?;
+    let av = s.get(idx).map_err(|e| IngestionError::Engine {
+        message: "failed to read profile value".to_string(),
+        source: Box::new(e),
+    })?;
     Ok(match av {
         AnyValue::Null => None,
         AnyValue::Float64(v) => Some(v),
@@ -395,7 +418,7 @@ fn any_to_f64(s: &Series, idx: usize) -> IngestionResult<Option<f64>> {
         other => {
             return Err(IngestionError::SchemaMismatch {
                 message: format!("expected numeric profile value, got {other}"),
-            })
+            });
         }
     })
 }
@@ -403,8 +426,8 @@ fn any_to_f64(s: &Series, idx: usize) -> IngestionResult<Option<f64>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{Field, Schema};
     use crate::types::Value;
+    use crate::types::{Field, Schema};
 
     fn tiny() -> DataSet {
         let schema = Schema::new(vec![
@@ -415,9 +438,17 @@ mod tests {
         DataSet::new(
             schema,
             vec![
-                vec![Value::Int64(1), Value::Float64(10.0), Value::Utf8("A".to_string())],
+                vec![
+                    Value::Int64(1),
+                    Value::Float64(10.0),
+                    Value::Utf8("A".to_string()),
+                ],
                 vec![Value::Int64(2), Value::Null, Value::Utf8("A".to_string())],
-                vec![Value::Int64(3), Value::Float64(30.0), Value::Utf8("B".to_string())],
+                vec![
+                    Value::Int64(3),
+                    Value::Float64(30.0),
+                    Value::Utf8("B".to_string()),
+                ],
             ],
         )
     }
@@ -466,4 +497,3 @@ mod tests {
         assert!(md.contains("### Columns"));
     }
 }
-

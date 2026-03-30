@@ -25,9 +25,21 @@ mod tests {
         ]);
 
         let rows = vec![
-            vec![Value::Int64(1), Value::Bool(true), Value::Utf8("a".to_string())],
-            vec![Value::Int64(2), Value::Bool(false), Value::Utf8("b".to_string())],
-            vec![Value::Int64(3), Value::Bool(true), Value::Utf8("c".to_string())],
+            vec![
+                Value::Int64(1),
+                Value::Bool(true),
+                Value::Utf8("a".to_string()),
+            ],
+            vec![
+                Value::Int64(2),
+                Value::Bool(false),
+                Value::Utf8("b".to_string()),
+            ],
+            vec![
+                Value::Int64(3),
+                Value::Bool(true),
+                Value::Utf8("c".to_string()),
+            ],
         ];
 
         DataSet::new(schema, rows)
@@ -54,8 +66,16 @@ mod tests {
         assert_eq!(
             out.rows,
             vec![
-                vec![Value::Int64(2), Value::Bool(false), Value::Utf8("b".to_string())],
-                vec![Value::Int64(3), Value::Bool(true), Value::Utf8("c".to_string())],
+                vec![
+                    Value::Int64(2),
+                    Value::Bool(false),
+                    Value::Utf8("b".to_string())
+                ],
+                vec![
+                    Value::Int64(3),
+                    Value::Bool(true),
+                    Value::Utf8("c".to_string())
+                ],
             ]
         );
         // Original unchanged
@@ -67,14 +87,24 @@ mod tests {
         let ds = sample_dataset();
         let active_idx = ds.schema.index_of("active").unwrap();
 
-        let out = filter(&ds, |row| matches!(row.get(active_idx), Some(Value::Bool(true))));
+        let out = filter(&ds, |row| {
+            matches!(row.get(active_idx), Some(Value::Bool(true)))
+        });
 
         assert_eq!(out.row_count(), 2);
         assert_eq!(
             out.rows,
             vec![
-                vec![Value::Int64(1), Value::Bool(true), Value::Utf8("a".to_string())],
-                vec![Value::Int64(3), Value::Bool(true), Value::Utf8("c".to_string())],
+                vec![
+                    Value::Int64(1),
+                    Value::Bool(true),
+                    Value::Utf8("a".to_string())
+                ],
+                vec![
+                    Value::Int64(3),
+                    Value::Bool(true),
+                    Value::Utf8("c".to_string())
+                ],
             ]
         );
     }
@@ -87,4 +117,3 @@ mod tests {
         assert!(out.rows.is_empty());
     }
 }
-

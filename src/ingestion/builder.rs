@@ -5,7 +5,7 @@ use crate::types::{DataSet, Schema};
 
 use super::observability::IngestionObserver;
 use super::observability::IngestionSeverity;
-use super::unified::{ingest_from_path, ExcelSheetSelection, IngestionFormat, IngestionOptions};
+use super::unified::{ExcelSheetSelection, IngestionFormat, IngestionOptions, ingest_from_path};
 
 /// Builder for [`IngestionOptions`].
 ///
@@ -62,7 +62,11 @@ impl IngestionOptionsBuilder {
     }
 
     /// Convenience: ingest using the configured options.
-    pub fn ingest_from_path(self, path: impl AsRef<std::path::Path>, schema: &Schema) -> IngestionResult<DataSet> {
+    pub fn ingest_from_path(
+        self,
+        path: impl AsRef<std::path::Path>,
+        schema: &Schema,
+    ) -> IngestionResult<DataSet> {
         let opts = self.build();
         ingest_from_path(path, schema, &opts)
     }
@@ -71,7 +75,9 @@ impl IngestionOptionsBuilder {
 #[cfg(test)]
 mod tests {
     use super::IngestionOptionsBuilder;
-    use crate::ingestion::{ExcelSheetSelection, IngestionFormat, IngestionOptions, IngestionSeverity};
+    use crate::ingestion::{
+        ExcelSheetSelection, IngestionFormat, IngestionOptions, IngestionSeverity,
+    };
 
     #[test]
     fn builder_defaults_match_ingestion_options_default() {
@@ -97,4 +103,3 @@ mod tests {
         assert_eq!(built.alert_at_or_above, IngestionSeverity::Error);
     }
 }
-

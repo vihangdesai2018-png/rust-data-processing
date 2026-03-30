@@ -3,7 +3,9 @@
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use rust_data_processing::ingestion::excel::{ingest_excel_from_path, ingest_excel_workbook_from_path};
+use rust_data_processing::ingestion::excel::{
+    ingest_excel_from_path, ingest_excel_workbook_from_path,
+};
 use rust_data_processing::types::{DataType, Field, Schema, Value};
 
 fn tmp_file(name: &str) -> PathBuf {
@@ -165,4 +167,3 @@ fn ingest_excel_multi_tab_selected_sheet_only() {
 
     let _ = std::fs::remove_file(&path);
 }
-

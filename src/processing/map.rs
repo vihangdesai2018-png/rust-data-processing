@@ -29,9 +29,21 @@ mod tests {
         ]);
 
         let rows = vec![
-            vec![Value::Int64(1), Value::Bool(true), Value::Utf8("a".to_string())],
-            vec![Value::Int64(2), Value::Bool(false), Value::Utf8("b".to_string())],
-            vec![Value::Int64(3), Value::Bool(true), Value::Utf8("c".to_string())],
+            vec![
+                Value::Int64(1),
+                Value::Bool(true),
+                Value::Utf8("a".to_string()),
+            ],
+            vec![
+                Value::Int64(2),
+                Value::Bool(false),
+                Value::Utf8("b".to_string()),
+            ],
+            vec![
+                Value::Int64(3),
+                Value::Bool(true),
+                Value::Utf8("c".to_string()),
+            ],
         ];
 
         DataSet::new(schema, rows)
@@ -92,4 +104,3 @@ mod tests {
         let _ = ds.map_rows(|_row| vec![Value::Int64(1)]);
     }
 }
-
