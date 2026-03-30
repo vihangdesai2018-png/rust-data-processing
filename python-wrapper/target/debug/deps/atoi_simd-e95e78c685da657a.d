@@ -1,0 +1,11 @@
+C:\Users\Vihan\work\projects\rust-data-processing\target\debug\deps\atoi_simd-e95e78c685da657a.d: C:\Users\Vihan\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\atoi_simd-0.17.0\src\lib.rs C:\Users\Vihan\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\atoi_simd-0.17.0\src\error.rs C:\Users\Vihan\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\atoi_simd-0.17.0\src\fallback.rs C:\Users\Vihan\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\atoi_simd-0.17.0\src\linker\mod.rs C:\Users\Vihan\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\atoi_simd-0.17.0\src\linker\fb_32.rs C:\Users\Vihan\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\atoi_simd-0.17.0\src\linker\fb_64.rs C:\Users\Vihan\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\atoi_simd-0.17.0\src\short.rs
+
+C:\Users\Vihan\work\projects\rust-data-processing\target\debug\deps\libatoi_simd-e95e78c685da657a.rmeta: C:\Users\Vihan\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\atoi_simd-0.17.0\src\lib.rs C:\Users\Vihan\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\atoi_simd-0.17.0\src\error.rs C:\Users\Vihan\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\atoi_simd-0.17.0\src\fallback.rs C:\Users\Vihan\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\atoi_simd-0.17.0\src\linker\mod.rs C:\Users\Vihan\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\atoi_simd-0.17.0\src\linker\fb_32.rs C:\Users\Vihan\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\atoi_simd-0.17.0\src\linker\fb_64.rs C:\Users\Vihan\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\atoi_simd-0.17.0\src\short.rs
+
+C:\Users\Vihan\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\atoi_simd-0.17.0\src\lib.rs:
+C:\Users\Vihan\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\atoi_simd-0.17.0\src\error.rs:
+C:\Users\Vihan\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\atoi_simd-0.17.0\src\fallback.rs:
+C:\Users\Vihan\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\atoi_simd-0.17.0\src\linker\mod.rs:
+C:\Users\Vihan\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\atoi_simd-0.17.0\src\linker\fb_32.rs:
+C:\Users\Vihan\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\atoi_simd-0.17.0\src\linker\fb_64.rs:
+C:\Users\Vihan\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\atoi_simd-0.17.0\src\short.rs:
