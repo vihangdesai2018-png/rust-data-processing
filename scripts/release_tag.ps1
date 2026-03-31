@@ -136,7 +136,7 @@ Version mismatch. Requested release '$semVer' but repo has:
   Cargo.toml (root):            $rootVer
   python-wrapper/pyproject.toml: $pyVer
   python-wrapper/Cargo.toml:     $pyCargoVer
-Bump all three to '$semVer' (see Planning/RELEASE_CHECKLIST.md §1) or pass -SkipVersionCheck.
+Bump all three to '$semVer' (see Planning/RELEASE_CHECKLIST.md, section 1) or pass -SkipVersionCheck.
 "@
   }
 }
@@ -195,7 +195,7 @@ $lastTag = Get-LastReleaseGitTag
 if ($lastTag) {
   Write-Host "Last release tag: $lastTag"
 } else {
-  Write-Host "Last release tag: (none — no local v* tags yet)"
+  Write-Host 'Last release tag: (none - no local v* tags yet)'
 }
 
 if (-not $PSCmdlet.ShouldProcess("$Remote $tagName", "Create annotated tag and push")) {

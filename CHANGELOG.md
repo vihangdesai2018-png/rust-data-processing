@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-03-30
+
+### Changed
+
+- `scripts/release_tag.ps1`: optional `-Comment`, interactive release comment, prints last `v*` tag, fetches tags; clearer error text.
+- CI: Documentation workflow uses `astral-sh/setup-uv@v8.0.0` and drops redundant `configure-pages` for static Pages deploy.
+
 ## [0.1.0] - 2026-03-20
 
 ### Added
@@ -20,4 +27,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `profiling`, `validation`, `outliers`, `transform` (TransformSpec), `cdc` boundary types.
 - Optional `db_connectorx` for DB → Arrow → `DataSet` ingestion.
 
+[0.1.1]: https://github.com/vihangdesai2018-png/rust-data-processing/releases/tag/v0.1.1
 [0.1.0]: https://github.com/vihangdesai2018-png/rust-data-processing/releases/tag/v0.1.0
