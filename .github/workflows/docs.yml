@@ -3,7 +3,9 @@
 # On pull requests: verify both doc builds without deploying.
 #
 # Prerequisite (one-time per repo): Settings → Pages → Build and deployment → Source: **GitHub Actions**.
-# Without this, actions/configure-pages fails with "Get Pages site ... Not Found" (REST 404).
+# Until then, the deploy job fails (Pages API has no site). We omit actions/configure-pages so the
+# deploy path matches artifact-only static hosting (configure-pages is mainly for SSG metadata and
+# duplicated the same GET /pages failure).
 
 name: Documentation
 
@@ -12,6 +14,10 @@ on:
     branches: ["main"]
   pull_request:
   workflow_dispatch:
+
+# Opt JavaScript actions into Node 24 (avoids Node 20 deprecation warnings on the runner).
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 permissions:
   contents: read
@@ -40,7 +46,7 @@ jobs:
         run: cargo doc --no-deps --locked
 
       - name: setup uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v8
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -81,9 +87,6 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Configure Pages
-        uses: actions/configure-pages@v6
-
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
