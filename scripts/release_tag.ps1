@@ -22,8 +22,14 @@
 .PARAMETER AllowDirty
   Allow uncommitted changes (default: require a clean working tree).
 
+.PARAMETER Comment
+  Annotated tag message (release notes one-liner). If omitted, you are prompted interactively.
+
 .EXAMPLE
   ./scripts/release_tag.ps1 0.2.0
+
+.EXAMPLE
+  ./scripts/release_tag.ps1 0.2.0 -Comment "Fix CSV quoting; Python wheel for 3.12"
 
 .EXAMPLE
   ./scripts/release_tag.ps1 v0.2.0 -WhatIf
@@ -35,6 +41,7 @@ param(
 
   [string]$Remote = 'origin',
   [string]$MainBranch = 'main',
+  [string]$Comment,
   [switch]$SkipVersionCheck,
   [switch]$AllowDirty
 )
@@ -99,6 +106,17 @@ function Invoke-Git {
   }
 }
 
+function Get-LastReleaseGitTag {
+  $lines = @(git tag -l 'v*' --sort=-version:refname 2>$null)
+  if ($LASTEXITCODE -ne 0) {
+    return $null
+  }
+  if ($lines.Count -eq 0 -or [string]::IsNullOrWhiteSpace($lines[0])) {
+    return $null
+  }
+  return $lines[0].Trim()
+}
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Set-Location $repoRoot
 
@@ -138,8 +156,8 @@ if ($branch -ne $MainBranch) {
   throw "Must be on branch '$MainBranch' (currently on '$branch')."
 }
 
-Write-Host "== fetch $Remote $MainBranch =="
-Invoke-Git @('fetch', $Remote, $MainBranch)
+Write-Host "== fetch $Remote $MainBranch (and tags) =="
+Invoke-Git @('fetch', $Remote, $MainBranch, '--tags')
 
 Write-Host "== pull $Remote $MainBranch (ff-only) =="
 Invoke-Git @('pull', '--ff-only', $Remote, $MainBranch)
@@ -173,10 +191,30 @@ if ($remoteTag) {
   throw "Tag '$tagName' already exists on $Remote. Use a new version."
 }
 
-$msg = "Release $tagName"
+$lastTag = Get-LastReleaseGitTag
+if ($lastTag) {
+  Write-Host "Last release tag: $lastTag"
+} else {
+  Write-Host "Last release tag: (none — no local v* tags yet)"
+}
+
 if (-not $PSCmdlet.ShouldProcess("$Remote $tagName", "Create annotated tag and push")) {
-  Write-Host "WhatIf: would run: git tag -a $tagName -m `"$msg`"; git push $Remote $tagName"
+  $demoMsg = if (-not [string]::IsNullOrWhiteSpace($Comment)) {
+    $Comment.Trim()
+  } else {
+    '<prompt for release comment, or pass -Comment>'
+  }
+  Write-Host "WhatIf: would run: git tag -a $tagName -m `"$demoMsg`"; git push $Remote $tagName"
   exit 0
+}
+
+if ([string]::IsNullOrWhiteSpace($Comment)) {
+  $hint = if ($lastTag) { "previous: $lastTag" } else { 'no previous v* tag' }
+  $Comment = Read-Host "Release comment for annotated tag $tagName ($hint)"
+}
+$msg = $Comment.Trim()
+if ([string]::IsNullOrWhiteSpace($msg)) {
+  throw 'Release comment must not be empty (provide text or use -Comment).'
 }
 
 Write-Host "== tag $tagName =="

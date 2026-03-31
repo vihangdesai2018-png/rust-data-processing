@@ -41,7 +41,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: setup uv
-        uses: astral-sh/setup-uv@v8
+        uses: astral-sh/setup-uv@v8.0.0
 
       - name: Set up Python
         uses: actions/setup-python@v5
