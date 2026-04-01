@@ -18,6 +18,6 @@ default = []
 db = ["rust-data-processing/db_connectorx"]
 
 [dependencies]
-pyo3 = { version = "0.24", features = ["extension-module"] }
+pyo3 = { version = "0.25", features = ["extension-module"] }
 rust-data-processing = { path = "..", default-features = true, features = ["excel"] }
 serde_json = "1"
