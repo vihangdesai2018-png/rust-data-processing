@@ -3,6 +3,9 @@
 #
 # Trigger: push a version tag v* — publishing runs ONLY if that tag points at a commit
 # already on origin/main (merge PR to main first, then tag the merge commit).
+#
+# Retries: skip-existing avoids 400 "file already exists" if a run partially uploaded
+# then failed (re-run completes the rest). A wait/timer does not help that case.
 
 name: Python (PyPI release)
 
@@ -10,6 +13,11 @@ on:
   push:
     tags:
       - "v*"
+
+# Only one release at a time per tag — avoids parallel uploads racing and hitting 400.
+concurrency:
+  group: pypi-release-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -115,3 +123,7 @@ jobs:
         with:
           packages-dir: dist
           password: ${{ secrets.PYPI_API_TOKEN }}
+          # Idempotent retries: if a previous run uploaded some wheels then errored, re-run skips those files.
+          skip-existing: true
+          # Surfaces PyPI’s response body on failure (e.g. “file already exists”).
+          verbose: true
