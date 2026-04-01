@@ -1,5 +1,7 @@
 # rust-data-processing (Python)
 
+**PyPI** uses [`README_PYPI.md`](README_PYPI.md) (Python-only project description). This file is the checkout/local quick start.
+
 Python bindings for the [`rust-data-processing`](../README.md) crate: schema-first ingestion from CSV, JSON, Parquet, and Excel into an in-memory **`DataSet`**.
 
 This directory is the **only** supported place for Python packaging, docs, and dev workflow for the bindings.

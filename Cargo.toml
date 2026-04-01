@@ -1,17 +1,22 @@
 [package]
 name = "rust-data-processing"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 rust-version = "1.85"
 description = "Schema-first ingestion (CSV, JSON, Parquet, Excel) into an in-memory DataSet, plus Polars-backed pipelines, SQL, profiling, validation, and map/reduce-style processing."
-readme = "README.md"
+readme = "README_CRATE.md"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/vihangdesai2018-png/rust-data-processing"
+documentation = "https://docs.rs/rust-data-processing"
 keywords = ["csv", "json", "parquet", "dataset", "etl"]
 categories = ["database-implementations", "parser-implementations"]
 exclude = [
     "Planning/",
     "python-wrapper/",
+    "docs/python/",
+    "docs/landing/",
+    # Monorepo landing README (Python + Rust); not the crate README. Shipped readme is README_CRATE.md.
+    "README.md",
     "test_run.log",
     ".github/",
     "scripts/",
