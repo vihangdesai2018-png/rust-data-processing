@@ -12,11 +12,13 @@ Bump **all** of these to the **same** SemVer (e.g. `0.2.0`):
 | **`python-wrapper/pyproject.toml`** | `[project] version` |
 | **`python-wrapper/Cargo.toml`** | `[package] version` |
 
+The release script **`scripts/release.py`** (or **`./scripts/release_tag.ps1`**) updates these plus **`Cargo.lock`** (root + **`python-wrapper/`**), **`python-wrapper/uv.lock`**, and inserts a **`CHANGELOG.md`** stub. Edit the changelog body after the script runs.
+
 PyPI uses **`pyproject.toml`** as the distribution version; the extension crate version should match for maintainability.
 
 ## 2) Changelog + CI
 
-1. Add a section for the new version in **`CHANGELOG.md`** ([Keep a Changelog](https://keepachangelog.com/)).
+1. Finish the new section in **`CHANGELOG.md`** (replace the stub line if the script added one) ([Keep a Changelog](https://keepachangelog.com/)).
 2. Open a PR; ensure **GitHub Actions** are green:
    - **`Rust CI`** (`.github/workflows/rust_ci.yml` — fmt, clippy, tests, ubuntu `--features ci_expanded`)
    - **`Python wrapper CI`** (maturin + pytest)
@@ -25,7 +27,7 @@ PyPI uses **`pyproject.toml`** as the distribution version; the extension crate 
 
 ## 3) Publish Rust crate (crates.io)
 
-**Preferred:** after merging to **`main`**, push tag **`v*`** (use **`./scripts/release_tag.ps1 X.Y.Z`** from §4) — **`rust_release.yml`** publishes via **`CRATES_IO_TOKEN`**.
+**Preferred:** after merging to **`main`**, push tag **`v*`** (use **`scripts/release.py`** / **`./scripts/release_tag.ps1`** - see §4) — **`rust_release.yml`** publishes via **`CRATES_IO_TOKEN`**.
 
 **Manual alternative** (from repo root, after merge):
 
@@ -54,17 +56,17 @@ Add **two** repository secrets under **Settings → Secrets and variables → Ac
 
 Releases are **not** automatic on every merge: you choose when to cut a tag after **`main`** already contains the version bump and green CI.
 
-Use **one** flow: complete steps **1–2** (versions + changelog + merge to **`main`**), then run the release script (or the raw git commands below). Do **not** also `cargo publish` locally for the same version, or the GitHub job will fail with “already uploaded”.
+Use **one** flow: complete steps **1–2** (changelog + merge to **`main`**), then run the release script (or the raw git commands below). The script can **bump versions** and **commit** in one step, or you can bump manually first. Do **not** also `cargo publish` locally for the same version, or the GitHub job will fail with “already uploaded”.
 
-1. Confirm **`python-wrapper/pyproject.toml`** version matches the Rust crate (step 1).
-2. Merge your release PR into **`main`** and ensure CI is green. Push **`main`** to **`origin`** so `HEAD` matches **`origin/main`**.
-3. From repo root, on **`main`**, create and push the version tag (script **verifies** the three package versions match the argument unless you pass **`-SkipVersionCheck`**):
+1. Confirm **`python-wrapper/pyproject.toml`** version matches the Rust crate (step 1), or let the release script bump them.
+2. Merge your release PR into **`main`** and ensure CI is green. Push **`main`** to **`origin`** so `HEAD` matches **`origin/main`** (unless the script will push main and bump for you).
+3. From repo root, on **`main`**, run the release script (interactive: shows last `v*` tag, prompts for new SemVer, writes files, commits, pushes **`main`**, pushes **`v*`**):
 
    ```powershell
-   ./scripts/release_tag.ps1 0.2.0
+   ./scripts/release_tag.ps1
    ```
 
-   Optional: **`-WhatIf`** to print the git commands without tagging; **`-AllowDirty`** if you intentionally have a dirty tree (not recommended).
+   Or: `python scripts/release.py`  /  `python scripts/release.py 0.2.0 --comment "Release notes" -y`  See `--help` for **`--dry-run`**, **`--skip-git`** (bump only), **`--no-commit`**, **`--allow-dirty`**.
 
    Equivalent manual commands:
 
