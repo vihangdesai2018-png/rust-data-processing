@@ -293,7 +293,7 @@ wheels = [
 
 [[package]]
 name = "rust-data-processing"
-version = "0.1.3"
+version = "0.1.4"
 source = { editable = "." }
 
 [package.dev-dependencies]
