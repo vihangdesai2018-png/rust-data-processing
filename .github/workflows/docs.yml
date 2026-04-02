@@ -62,6 +62,14 @@ jobs:
           uv run pdoc -d google -o "${GITHUB_WORKSPACE}/site/python" \
             rust_data_processing rust_data_processing.examples
 
+      - name: Verify pdoc wrote examples page
+        run: |
+          set -euo pipefail
+          test -f "${GITHUB_WORKSPACE}/site/python/rust_data_processing/examples.html"
+          # Stable URL (avoids deep path); same file as the pdoc module page.
+          cp -f "${GITHUB_WORKSPACE}/site/python/rust_data_processing/examples.html" \
+            "${GITHUB_WORKSPACE}/site/python/examples.html"
+
       - name: Assemble site
         run: |
           set -euo pipefail

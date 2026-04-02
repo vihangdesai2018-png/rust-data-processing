@@ -10,7 +10,7 @@
 CI builds browsable HTML on each push to `main` (combined with Rust rustdoc). Entry point:
 
 - [GitHub Pages — Python API (pdoc)](https://vihangdesai2018-png.github.io/rust-data-processing/python/) — landing + Rust rustdoc: [site root](https://vihangdesai2018-png.github.io/rust-data-processing/)
-- **Examples** in pdoc come from the repo’s [`docs/python/README.md`](../../docs/python/README.md) (included via `rust_data_processing.examples`).
+- **Examples** in pdoc come from the repo’s [`docs/python/README.md`](../../docs/python/README.md) (included via `rust_data_processing.examples`). Published URL: `python/examples.html` (copy of the module page).
 
 Local build (from `python-wrapper/` after `uv sync --group dev`):
 

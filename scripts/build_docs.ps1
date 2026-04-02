@@ -49,7 +49,16 @@ New-Item -ItemType Directory -Path $pyOut | Out-Null
 & uv run pdoc -d google -o $pyOut rust_data_processing rust_data_processing.examples
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+$nested = Join-Path $pyOut 'rust_data_processing/examples.html'
+$flat = Join-Path $pyOut 'examples.html'
+if (Test-Path $nested) {
+  Copy-Item -Force $nested $flat
+} else {
+  Write-Error "pdoc did not emit rust_data_processing/examples.html"
+  exit 1
+}
+
 Set-Location $repoRoot
 Write-Host "Done."
 Write-Host "  Rust:  target/doc/rust_data_processing/index.html"
-Write-Host "  Python: _site/python/index.html"
+Write-Host "  Python: _site/python/index.html (examples: _site/python/examples.html)"
