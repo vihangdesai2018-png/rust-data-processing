@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "rust-data-processing"
-version = "0.1.4"
+version = "0.1.5"
 description = "Python bindings for rust-data-processing: schema-first CSV/JSON/Parquet/Excel ingestion into an in-memory DataSet."
 readme = "README_PYPI.md"
 requires-python = ">=3.10"
