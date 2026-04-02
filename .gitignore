@@ -1,5 +1,19 @@
-/target
+# Rust: ignore Cargo output at repo root and under sub-crates (e.g. python-wrapper/).
+target/
 /_site
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+
+# Native extensions / build outputs (maturin, PyO3, MSVC). Rebuild with cargo/maturin — do not commit.
+*.pyd
+*.dll
+*.pdb
 **/*.rs.bk
 HighLevelDevelopmentPlan.txt
 epcis_and_stories.txt
