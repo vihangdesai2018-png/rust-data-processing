@@ -46,7 +46,7 @@ if (Test-Path $pyOut) {
   Remove-Item -Recurse -Force $pyOut
 }
 New-Item -ItemType Directory -Path $pyOut | Out-Null
-& uv run pdoc -d google -o $pyOut rust_data_processing
+& uv run pdoc -d google -o $pyOut rust_data_processing rust_data_processing.examples
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Set-Location $repoRoot

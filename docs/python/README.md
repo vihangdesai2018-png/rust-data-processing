@@ -1,5 +1,7 @@
 # Python quick start and examples
 
+The same Markdown is **included in the HTML docs** (pdoc) as [`rust_data_processing.examples`](https://vihangdesai2018-png.github.io/rust-data-processing/python/rust_data_processing/examples.html) — see `python-wrapper/rust_data_processing/examples.py`.
+
 This page collects **Python** snippets for the `rust-data-processing` package (PyO3 extension). The [repository README](../../README.md) leads with a short Python quick start; the canonical API reference is [`python-wrapper/API.md`](../../python-wrapper/API.md). Rust snippets live in [`docs/rust/README.md`](../rust/README.md).
 
 Install (from PyPI after release, or from a checkout with `maturin develop` — see [`Planning/RELEASE_CHECKLIST.md`](../../Planning/RELEASE_CHECKLIST.md)):

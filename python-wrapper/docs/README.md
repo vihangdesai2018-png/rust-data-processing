@@ -9,13 +9,14 @@
 
 CI builds browsable HTML on each push to `main` (combined with Rust rustdoc). Entry point:
 
-- [GitHub Pages — project root](https://vihangdesai2018-png.github.io/rust-data-processing/) → **Python API (pdoc)**
+- [GitHub Pages — Python API (pdoc)](https://vihangdesai2018-png.github.io/rust-data-processing/python/) — landing + Rust rustdoc: [site root](https://vihangdesai2018-png.github.io/rust-data-processing/)
+- **Examples** in pdoc come from the repo’s [`docs/python/README.md`](../../docs/python/README.md) (included via `rust_data_processing.examples`).
 
 Local build (from `python-wrapper/` after `uv sync --group dev`):
 
 ```bash
 uv run maturin develop --release
-uv run pdoc -d google -o ../_site/python rust_data_processing
+uv run pdoc -d google -o ../_site/python rust_data_processing rust_data_processing.examples
 ```
 
 From the repository root (PowerShell), the same output is produced by `./scripts/build_docs.ps1 -All` → `_site/python/index.html`.

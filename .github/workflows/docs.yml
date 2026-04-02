@@ -59,7 +59,8 @@ jobs:
           set -euo pipefail
           uv sync --group dev
           uv run maturin develop --release
-          uv run pdoc -d google -o "${GITHUB_WORKSPACE}/site/python" rust_data_processing
+          uv run pdoc -d google -o "${GITHUB_WORKSPACE}/site/python" \
+            rust_data_processing rust_data_processing.examples
 
       - name: Assemble site
         run: |

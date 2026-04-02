@@ -38,8 +38,10 @@ print("checks", validation["summary"]["total_checks"])
 
 | | Link |
 | --- | --- |
-| **Python API** | [API.md in the repository](https://github.com/vihangdesai2018-png/rust-data-processing/blob/main/python-wrapper/API.md) |
-| **HTML (pdoc + rustdoc)** | [GitHub Pages](https://vihangdesai2018-png.github.io/rust-data-processing/) |
+| **Python examples (HTML, pdoc)** | [GitHub Pages — examples](https://vihangdesai2018-png.github.io/rust-data-processing/python/rust_data_processing/examples.html) |
+| **Python API (HTML, pdoc)** | [GitHub Pages — Python](https://vihangdesai2018-png.github.io/rust-data-processing/python/) |
+| **Python API (markdown)** | [API.md in the repository](https://github.com/vihangdesai2018-png/rust-data-processing/blob/main/python-wrapper/API.md) |
+| **Combined site (landing + Rust rustdoc)** | [GitHub Pages — home](https://vihangdesai2018-png.github.io/rust-data-processing/) |
 | **Rust crate API** | [docs.rs/rust-data-processing](https://docs.rs/rust-data-processing) |
 | **Repository** | [github.com/vihangdesai2018-png/rust-data-processing](https://github.com/vihangdesai2018-png/rust-data-processing) |
 
