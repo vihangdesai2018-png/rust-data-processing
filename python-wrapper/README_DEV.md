@@ -56,7 +56,7 @@ To change features, edit `python-wrapper/Cargo.toml` under `[dependencies] rust-
 
 ### Optional: DB ingestion (`ConnectorX`)
 
-The extension crate defines a Cargo feature **`db`** that enables `db_connectorx` on the parent crate (large dependency graph).
+The extension crate defines a Cargo feature **`db`** that enables `db_connectorx` on the parent crate (large dependency graph). This feature is **only** needed for **`ingest_from_db`** / **`ingest_from_db_infer`**. If you load query results with a **Python** database library instead, build **`DataSet(schema, rows)`** yourself — no `db` feature required (see **`API.md`** § Ingestion).
 
 ```bash
 uv run maturin develop --release --features db

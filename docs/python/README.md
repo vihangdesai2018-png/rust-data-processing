@@ -14,6 +14,21 @@ pip install rust-data-processing
 import rust_data_processing as rdp
 ```
 
+### What this page covers
+
+Use this as a **tour of the Python API** (the same page is rendered on [GitHub Pages](https://vihangdesai2018-png.github.io/rust-data-processing/python/examples.html)). For every function signature and option, see [`python-wrapper/API.md`](../../python-wrapper/API.md).
+
+| Topic | Where below |
+| --- | --- |
+| **File ETL** (CSV, JSON, Parquet, Excel) | [Quick start](#quick-start-library-usage), [JSON / Parquet / Excel](#json-parquet-and-excel) |
+| **Databases** (Python driver vs built-in ConnectorX) | [Database sources: two ways](#database-sources-two-ways), [ConnectorX](#direct-db-ingestion-connectorx-feature-gated) |
+| **SQL & lazy `DataFrame`** | [SQL](#sql-queries-polars-backed-phase-1), [DataFrame pipelines](#dataframe-centric-pipelines-polars-backed-phase-1), [Cookbook](#cookbook-phase-1) |
+| **Declarative transforms** | [`TransformSpec`](#end-user-transformation-spec-transformspec-phase-1) |
+| **ML / QA** (profile, validate, outliers) | [ML-oriented flow](#ml--training-dataset-prep-phase-1), [Profiling](#profiling-phase-1), [Validation](#validation-phase-1), [Outliers](#outlier-detection-phase-1) |
+| **Row-wise & parallel processing** | [Processing pipelines](#processing-pipelines-epic-1--story-12), [Execution engine](#execution-engine-parallel-pipelines-story-13) |
+| **Ingestion observability** | [Observability](#observability-failurealert-hooks) |
+| **CDC boundary types** | [CDC](#cdc-interface-boundary-phase-1-spike) |
+
 ## Quick start (library usage)
 
 Ingest a file with an explicit schema (format can be set or inferred from the extension):
@@ -38,6 +53,39 @@ Infer schema from the file, then ingest (two passes — same idea as Rust’s `i
 ```python
 ds, schema = rdp.ingest_with_inferred_schema("tests/fixtures/people.csv")
 print(schema[0]["name"], ds.row_count())
+```
+
+### JSON, Parquet, and Excel
+
+Format is usually inferred from the extension; you can set **`"format"`** explicitly (`"csv"`, `"json"`, `"parquet"`, `"excel"`). JSON with **nested objects** may need **dotted column names** in the schema (e.g. `user.name` for `tests/fixtures/people.json`).
+
+```python
+import rust_data_processing as rdp
+
+# JSON (nested columns — matches tests/fixtures/people.json)
+schema_json = [
+    {"name": "id", "data_type": "int64"},
+    {"name": "user.name", "data_type": "utf8"},
+    {"name": "score", "data_type": "float64"},
+    {"name": "active", "data_type": "bool"},
+]
+ds_json = rdp.ingest_from_path(
+    "tests/fixtures/people.json",
+    schema_json,
+    {"format": "json"},
+)
+
+# Parquet — use a real path to your `.parquet` file
+schema_flat = [
+    {"name": "id", "data_type": "int64"},
+    {"name": "name", "data_type": "utf8"},
+    {"name": "score", "data_type": "float64"},
+    {"name": "active", "data_type": "bool"},
+]
+ds_parquet = rdp.ingest_from_path("path/to/file.parquet", schema_flat, {"format": "parquet"})
+
+# Excel — optional sheet selection in options (see python-wrapper/README.md)
+ds_excel = rdp.ingest_from_path("path/to/file.xlsx", schema_flat, {"format": "excel"})
 ```
 
 ## DataFrame-centric pipelines (Polars-backed) (Phase 1)
@@ -122,16 +170,50 @@ out = ctx.execute(
 ).collect()
 ```
 
+## Database sources: two ways
+
+1. **Your own Python driver (no `db` feature):** Use **psycopg2**, **SQLAlchemy**, etc., execute SQL, then build a **`DataSet(schema, rows)`** from the result rows (schema/row shape in [`python-wrapper/API.md`](../../python-wrapper/API.md) § Conventions; **`DataSet`** examples appear throughout this page). This works with the default PyPI wheel; you do not need ConnectorX or `maturin … --features db`.
+
+2. **Built-in SQL → `DataSet` (requires `db`):** **`ingest_from_db`** / **`ingest_from_db_infer`** use ConnectorX inside the native extension. The module must be built with the **`db`** Cargo feature (see [`python-wrapper/README_DEV.md`](../../python-wrapper/README_DEV.md)).
+
+**Concrete pattern (any Python DB-API driver — no `db` feature):** map query results to **`DataSet(schema, rows)`** yourself.
+
+```python
+import rust_data_processing as rdp
+
+# After cursor.execute(...): build schema from your column names + logical types,
+# then rows = list(cursor.fetchall()) (or batch). Example shape:
+schema = [
+    {"name": "id", "data_type": "int64"},
+    {"name": "name", "data_type": "utf8"},
+]
+rows = [[1, "ada"], [2, "grace"]]
+ds = rdp.DataSet(schema, rows)
+```
+
 ## Direct DB ingestion (ConnectorX) (feature-gated)
 
 The native module must be built with the **`db`** Cargo feature (see [`python-wrapper/README_DEV.md`](../../python-wrapper/README_DEV.md)). Then:
 
 ```python
+# Infer column types from the query result
 ds = rdp.ingest_from_db_infer(
     "postgresql://user:pass@localhost:5432/db?cxprotocol=binary",
     "SELECT id, score, active FROM my_table",
 )
 print("rows", ds.row_count())
+
+# Or provide an explicit schema (same strings as file ingest)
+schema = [
+    {"name": "id", "data_type": "int64"},
+    {"name": "score", "data_type": "float64"},
+    {"name": "active", "data_type": "bool"},
+]
+ds = rdp.ingest_from_db(
+    "postgresql://user:pass@localhost:5432/db?cxprotocol=binary",
+    "SELECT id, score, active FROM my_table",
+    schema,
+)
 ```
 
 ## End-user transformation spec (TransformSpec) (Phase 1)
@@ -175,6 +257,10 @@ out = rdp.transform_apply(ds, spec)
 assert out.column_names() == ["id", "score_f", "wx"]
 ```
 
+## ML / training-dataset prep (Phase 1)
+
+For **tabular ML**, teams usually combine **data quality** and **understanding** before training or batch inference: **profile** columns (nulls, ranges, quantiles), **validate** business rules (not-null, regex, ranges), and optionally **flag outliers** for review. This library keeps those steps on a single **`DataSet`**; see [Profiling](#profiling-phase-1), [Validation](#validation-phase-1), and [Outlier detection](#outlier-detection-phase-1) below. Raw **JSON** or **Markdown** report strings are available as `profile_dataset_json` / `profile_dataset_markdown` (and the `validate_*` / `detect_outliers_*` variants) if you want files or PR comments instead of dicts.
+
 ## Profiling (Phase 1)
 
 ```python
@@ -190,6 +276,12 @@ rep = rdp.profile_dataset(
 )
 assert rep["row_count"] == 2
 assert rep["columns"][0]["null_count"] == 1
+```
+
+Markdown for humans (e.g. paste into a doc or ticket):
+
+```python
+md = rdp.profile_dataset_markdown(ds, {"head_rows": 100, "quantiles": [0.5, 0.95]})
 ```
 
 ## Validation (Phase 1)
