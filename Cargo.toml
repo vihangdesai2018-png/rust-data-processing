@@ -22,6 +22,13 @@ exclude = [
     "scripts/",
 ]
 
+# docs.rs builds the crate in a memory- and time-bounded environment. Polars + Arrow pull a large
+# dependency graph; limiting parallel rustc jobs avoids OOM kills on the builder. If 0.1.5 failed
+# with no clear compiler error in the log, republish with this block present (e.g. 0.1.6).
+# See https://docs.rs/about/metadata and https://docs.rs/about/builds
+[package.metadata.docs.rs]
+cargo-args = ["-j", "1"]
+
 [dependencies]
 csv = "1.3.1"
 calamine = { version = "0.33.0", optional = true }
