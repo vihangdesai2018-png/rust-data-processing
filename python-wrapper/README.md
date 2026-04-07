@@ -53,5 +53,5 @@ Same as the Rust crate: **MIT OR Apache-2.0**. Full license texts live in the re
 ## Publishing wheels
 
 - **Local:** `uv run maturin build --release` (see `README_DEV.md`).
-- **CI:** `.github/workflows/python_ci.yml` builds and tests on every qualifying PR/push; **`.github/workflows/python_release.yml`** uploads to **PyPI** when you push a tag **`v*`** whose commit is already on **`main`** (requires **`PYPI_API_TOKEN`**). Rust publishing uses **`.github/workflows/rust_release.yml`** and **`CRATES_IO_TOKEN`** under the same tag + **main** rule — see **`Planning/How_TO_deploy.md`**.
-- **Checklist:** keep `pyproject.toml`, root `Cargo.toml`, and `python-wrapper/Cargo.toml` versions aligned — see **`Planning/RELEASE_CHECKLIST.md`** and **`Planning/How_TO_deploy.md`**.
+- **CI:** `.github/workflows/python_ci.yml` builds and tests on every qualifying PR/push; **`.github/workflows/python_release.yml`** uploads to **PyPI** when you push a tag **`v*`** whose commit is already on **`main`** (requires **`PYPI_API_TOKEN`**). Rust publishing uses **`.github/workflows/rust_release.yml`** and **`CRATES_IO_TOKEN`** under the same tag + **main** rule — see **`docs/How_TO_deploy.md`**.
+- **Checklist:** keep `pyproject.toml`, root `Cargo.toml`, and `python-wrapper/Cargo.toml` versions aligned — see **`docs/RELEASE_CHECKLIST.md`** and **`docs/How_TO_deploy.md`**.

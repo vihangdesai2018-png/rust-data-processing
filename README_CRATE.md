@@ -12,7 +12,7 @@ This file is the **crate README** shown on [crates.io](https://crates.io/crates/
 | **Repository** | [github.com/vihangdesai2018-png/rust-data-processing](https://github.com/vihangdesai2018-png/rust-data-processing) |
 | **Markdown API overview** | [`API.md`](./API.md) (shipped in this crate) |
 | **Rust examples & cookbook** | [`docs/rust/README.md`](./docs/rust/README.md) |
-| **HTML site (Rust + Python pages)** | [GitHub Pages](https://vihangdesai2018-png.github.io/rust-data-processing/) — use **Rust (rustdoc)** for this crate; [setup](https://github.com/vihangdesai2018-png/rust-data-processing/blob/main/Planning/DOCUMENTATION.md) if the site is empty. |
+| **HTML site (Rust + Python pages)** | [GitHub Pages](https://vihangdesai2018-png.github.io/rust-data-processing/) — use **Rust (rustdoc)** for this crate; [setup](https://github.com/vihangdesai2018-png/rust-data-processing/blob/main/docs/DOCUMENTATION.md) if the site is empty. |
 
 ## Quick start (Rust)
 

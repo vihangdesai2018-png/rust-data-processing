@@ -20,5 +20,5 @@ epcis_and_stories.txt
 test_run.log
 test_run_*.log
 benchmarks.log
-# Local marketing / LinkedIn drafts — not for version control
-Planning/Post_README.md
+# Local planning / story tracking — not for version control
+Planning/

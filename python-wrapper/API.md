@@ -220,7 +220,7 @@ Submodule **`rust_data_processing.cdc`** exposes dataclasses aligned with `rust_
 - **PyArrow / pandas** conversion (optional future extra).
 - **DB ingestion** works from Python only when the extension is built with `--features db` (ConnectorX + sources in the parent crate).
 
-See [Planning/PHASE1A_PLAN.md](../Planning/PHASE1A_PLAN.md) §2.2 and [PARITY.md](PARITY.md).
+See [PARITY.md](PARITY.md) (Phase 1a parity matrix; a fuller tracker may live in your local **`Planning/PHASE1A_PLAN.md`** if you maintain one).
 
 ---
 
@@ -255,4 +255,4 @@ eng.reduce(small, "score", "mean")
 - [README_DEV.md](README_DEV.md) — maturin, uv, tests, **`db` feature**  
 - [PARITY.md](PARITY.md) — Rust ↔ Python matrix  
 - Root [API.md](../API.md) — Rust API  
-- [REDUCE_AGG_SEMANTICS.md](../Planning/REDUCE_AGG_SEMANTICS.md) — aggregate semantics  
+- [REDUCE_AGG_SEMANTICS.md](../docs/REDUCE_AGG_SEMANTICS.md) — aggregate semantics  

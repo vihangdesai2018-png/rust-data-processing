@@ -1,14 +1,14 @@
 # Developer README (rust-data-processing)
 
 This doc is for contributors working inside the repo. Keep it in sync with the actual module structure under `src/`
-and the Phase 1 tracker in `Planning/PHASE1_PLAN.md`.
+and your local Phase 1 tracker in **`Planning/PHASE1_PLAN.md`** (the **`Planning/`** directory is gitignored; use it for private planning).
 
 ## Quick navigation
 
-- **Published documentation (CI + Pages)**: `Planning/DOCUMENTATION.md` (rustdoc + pdoc, GitHub Pages, local `./scripts/build_docs.ps1 -All`)
-- **Issue triage (labels, popular-bug query)**: `Planning/ISSUE_TRIAGE.md`
+- **Published documentation (CI + Pages)**: `docs/DOCUMENTATION.md` (rustdoc + pdoc, GitHub Pages, local `./scripts/build_docs.ps1 -All`)
+- **Issue triage (labels, popular-bug query)**: `docs/ISSUE_TRIAGE.md`
 - **User-facing examples**: root `README.md` (cookbook + map/reduce aggregates); `API.md` (full aggregate / `group_by` snippets)
-- **Reduce / aggregate semantics**: `Planning/REDUCE_AGG_SEMANTICS.md`
+- **Reduce / aggregate semantics**: `docs/REDUCE_AGG_SEMANTICS.md`
 - **Public API surface**: `src/lib.rs` (module exports + default-on `sql`)
 - **Core data model**: `src/types.rs` (`Schema`, `Field`, `DataType`, `DataSet`, `Value`)
 - **Errors**: `src/error.rs` (`IngestionError`, `IngestionResult<T>`)
@@ -139,7 +139,7 @@ Guidelines:
 
 - **`.github/workflows/rust_ci.yml`** — on every PR and push to **`main`**: `fmt`, `clippy`, tests (ubuntu + Windows), plus **ubuntu** `cargo test --features ci_expanded` (no **`db_connectorx`** — avoids OpenSSL/Perl in CI).
 - **`.github/workflows/rust_release.yml`** — on tag **`v*`** (commit must be on **`main`**): `cargo publish --dry-run` then `cargo publish`.
-- Policy write-up: **`Planning/CI_DEPLOY_POLICY.md`**.
+- Policy write-up: **`docs/CI_DEPLOY_POLICY.md`**.
 
 ### Build + test
 
@@ -239,5 +239,5 @@ cargo test --no-default-features
   - If you change behavior in ingestion/pipelines, update or add benchmarks/tests to keep parity expectations explicit.
 - **Docs upkeep**:
   - If you add/rename modules or public APIs, update **both** `README.md` and this file (`README_DEV.md`).
-  - Keep the roadmap summary in `README.md` aligned with `Planning/PHASE1_PLAN.md`.
+  - Keep the roadmap summary in `README.md` aligned with your local **`Planning/PHASE1_PLAN.md`** if you maintain one.
 

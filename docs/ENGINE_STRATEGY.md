@@ -49,7 +49,7 @@ Legend:
 ### SQL (user-facing)
 
 | Capability | Polars (`polars-sql`) | DataFusion | Custom | Phase 1 decision / notes |
-|---|---:|---:|---:|---|
+|---|---:|---:|---|
 | Basic SQL (SELECT/WHERE/JOIN/GROUP BY) | Maybe | Prefer |  | If SQL is “nice to have,” `polars-sql` may be enough; validate required syntax. |
 | Broad SQL feature coverage | Limited | Prefer |  | If SQL becomes a core product requirement, DataFusion is the better choice. |
 | SQL UDFs / extensibility | Limited | Prefer |  | DataFusion is built around extensibility. |
@@ -57,7 +57,7 @@ Legend:
 ### Phase 1 differentiators (Ergonomics + Data Quality)
 
 | Capability | Polars | DataFusion | Custom | Phase 1 decision / notes |
-|---|---:|---:|---:|---|
+|---|---:|---:|---|
 | Ergonomic Rust API (builders, docs, defaults) |  |  | Prefer | Engine-agnostic product layer: we own this. |
 | Profiling (nulls, quantiles, top-k, etc.) | Prefer | Optional |  | Implement using Polars computations; keep output stable and engine-agnostic. |
 | Validation DSL & checks | Prefer (expressions) | Optional |  | Compile checks to expressions; custom only where engine lacks primitives. |
@@ -102,4 +102,3 @@ The tables above are the initial delegation boundaries. As we refactor baseline 
 - exact file formats and dialects supported
 - exact behavior differences (types, null semantics, parsing)
 - performance notes and benchmarks
-

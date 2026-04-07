@@ -6,7 +6,7 @@ This project is a Rust library (**crates.io**) and a Python package (**PyPI**) b
 
 ## Deploy to crates.io (Rust)
 
-Full checklist: **`Planning/RELEASE_CHECKLIST.md`** (Rust + Python alignment).
+Full checklist: **[`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md)** (Rust + Python alignment).
 
 ### Prerequisites
 
@@ -119,7 +119,7 @@ The workflow **`python_release.yml`** passes this to **`pypa/gh-action-pypi-publ
 #### D) After secrets exist
 
 1. Merge your release to **`main`** (version bumps + changelog, CI green).
-2. Create and push the tag on **`main`** (see **`Planning/RELEASE_CHECKLIST.md`**):
+2. Create and push the tag on **`main`** (see **[`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md)**):
 
    ```bash
    git fetch origin main
@@ -163,7 +163,7 @@ Document in **`python-wrapper/README_DEV.md`** and **`API.md`** which optional c
 
 ## CI / deploy policy
 
-Branching, when workflows run, and why we use **tag + `main`** for publishes: **`Planning/CI_DEPLOY_POLICY.md`**.
+Branching, when workflows run, and why we use **tag + `main`** for publishes: **[`CI_DEPLOY_POLICY.md`](CI_DEPLOY_POLICY.md)**.
 
 ## Reporting bugs
 

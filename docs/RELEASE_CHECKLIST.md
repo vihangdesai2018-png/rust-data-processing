@@ -22,7 +22,7 @@ PyPI uses **`pyproject.toml`** as the distribution version; the extension crate 
 2. Open a PR; ensure **GitHub Actions** are green:
    - **`Rust CI`** (`.github/workflows/rust_ci.yml` — fmt, clippy, tests, ubuntu `--features ci_expanded`)
    - **`Python wrapper CI`** (maturin + pytest)
-   - **`Documentation`** (`.github/workflows/docs.yml` — rustdoc + pdoc build; on `main`, refreshes GitHub Pages if configured — see [`Planning/DOCUMENTATION.md`](DOCUMENTATION.md))
+   - **`Documentation`** (`.github/workflows/docs.yml` — rustdoc + pdoc build; on `main`, refreshes GitHub Pages if configured — see [`DOCUMENTATION.md`](DOCUMENTATION.md))
 3. Merge to **`main`**.
 
 ## 3) Publish Rust crate (crates.io)
@@ -45,7 +45,7 @@ cargo publish
 
 ### One-time setup (GitHub secrets)
 
-Add **two** repository secrets under **Settings → Secrets and variables → Actions** (step-by-step: **`Planning/How_TO_deploy.md`** § *GitHub: add secrets for crates.io and PyPI*). Once **`CRATES_IO_TOKEN`** and **`PYPI_API_TOKEN`** are set, tagged releases can publish without further token setup.
+Add **two** repository secrets under **Settings → Secrets and variables → Actions** (step-by-step: **[`How_TO_deploy.md`](How_TO_deploy.md)** § *GitHub: add secrets for crates.io and PyPI*). Once **`CRATES_IO_TOKEN`** and **`PYPI_API_TOKEN`** are set, tagged releases can publish without further token setup.
 
 | Secret name | Used by | Created at |
 |-------------|---------|------------|
@@ -107,5 +107,5 @@ uv run maturin build --release -o dist --find-interpreter --sdist
 
 ## Reference
 
-- **`Planning/How_TO_deploy.md`** — packaging details, CI matrix, **`abi3`** note, feature flags.
+- **[`How_TO_deploy.md`](How_TO_deploy.md)** — packaging details, CI matrix, **`abi3`** note, feature flags.
 - **`python-wrapper/PARITY.md`** — Rust ↔ Python API matrix.

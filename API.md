@@ -263,7 +263,7 @@ The processing layer operates on `types::DataSet` in-memory:
 - **Top‑k by frequency**: `processing::top_k_by_frequency(&DataSet, column, k) -> Option<Vec<(Value, i64)>>`
 - **Group-by ML aggregates**: `pipeline::DataFrame::group_by(keys, &[Agg::...])` supports `Mean`, `StdDev`, `Min`, `Max`, `Sum`, `CountRows`, `CountDistinctNonNull`, etc.
 
-Semantics for nulls, all-null groups, and casting: see `Planning/REDUCE_AGG_SEMANTICS.md`.
+Semantics for nulls, all-null groups, and casting: see `docs/REDUCE_AGG_SEMANTICS.md`.
 
 ### Example: filter → map → sum (baseline)
 

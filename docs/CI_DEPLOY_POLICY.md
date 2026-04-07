@@ -1,6 +1,6 @@
 # CI and deploy policy (Phase 1a)
 
-This document records the **branching**, **CI**, and **registry publish** choices for this repo (see `PHASE1A_PLAN.md` §4–5).
+This document records the **branching**, **CI**, and **registry publish** choices for this repo (aligned with **[`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md)** and **[`How_TO_deploy.md`](How_TO_deploy.md)**).
 
 ## Branching
 
@@ -84,4 +84,4 @@ We evaluated:
 
 ## Release checklist pointer
 
-Concrete steps (version bumps, tag, secrets): **`Planning/RELEASE_CHECKLIST.md`**.
+Concrete steps (version bumps, tag, secrets): **[`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md)**.

@@ -4,7 +4,7 @@ The same Markdown is **included in the HTML docs** (pdoc) as [`rust_data_process
 
 This page collects **Python** snippets for the `rust-data-processing` package (PyO3 extension). The [repository README](../../README.md) leads with a short Python quick start; the canonical API reference is [`python-wrapper/API.md`](../../python-wrapper/API.md). Rust snippets live in [`docs/rust/README.md`](../rust/README.md).
 
-Install (from PyPI after release, or from a checkout with `maturin develop` — see [`Planning/RELEASE_CHECKLIST.md`](../../Planning/RELEASE_CHECKLIST.md)):
+Install (from PyPI after release, or from a checkout with `maturin develop` — see [`docs/RELEASE_CHECKLIST.md`](../RELEASE_CHECKLIST.md)):
 
 ```bash
 pip install rust-data-processing
@@ -440,7 +440,7 @@ _ = (
 )
 ```
 
-**Semantics** (nulls, all-null groups, `SUM` vs `MEAN`, casting): see [`Planning/REDUCE_AGG_SEMANTICS.md`](../../Planning/REDUCE_AGG_SEMANTICS.md). More detail: [`python-wrapper/API.md`](../../python-wrapper/API.md) § *Processing pipelines*.
+**Semantics** (nulls, all-null groups, `SUM` vs `MEAN`, casting): see [`docs/REDUCE_AGG_SEMANTICS.md`](../REDUCE_AGG_SEMANTICS.md). More detail: [`python-wrapper/API.md`](../../python-wrapper/API.md) § *Processing pipelines*.
 
 Join two DataFrames:
 
@@ -475,7 +475,7 @@ In-memory helpers mirror `rust_data_processing::processing`:
 - `processing_reduce(ds, column, op)` — op names: `count`, `sum`, `min`, `max`, `mean`, `variance_population`, `variance_sample`, `stddev_population`, `stddev_sample`, `sum_squares`, `l2_norm`, `count_distinct_non_null`, …
 - `processing_feature_wise_mean_std`, `processing_arg_max_row`, `processing_arg_min_row`, `processing_top_k_by_frequency`
 
-Polars-backed equivalents: `DataFrame.reduce`, `DataFrame.feature_wise_mean_std`. **Semantics**: [`Planning/REDUCE_AGG_SEMANTICS.md`](../../Planning/REDUCE_AGG_SEMANTICS.md).
+Polars-backed equivalents: `DataFrame.reduce`, `DataFrame.feature_wise_mean_std`. **Semantics**: [`docs/REDUCE_AGG_SEMANTICS.md`](../REDUCE_AGG_SEMANTICS.md).
 
 Example:
 
@@ -643,4 +643,4 @@ except ValueError:
 - [`python-wrapper/README.md`](../../python-wrapper/README.md) — install and dev workflow  
 - [`python-wrapper/API.md`](../../python-wrapper/API.md) — full Python API  
 - [`docs/rust/README.md`](../rust/README.md) — Rust mirror of this page  
-- [`Planning/REDUCE_AGG_SEMANTICS.md`](../../Planning/REDUCE_AGG_SEMANTICS.md) — aggregate semantics
+- [`docs/REDUCE_AGG_SEMANTICS.md`](../REDUCE_AGG_SEMANTICS.md) — aggregate semantics

@@ -1,7 +1,7 @@
 //! Multi-column and row-index reductions over a [`DataSet`](crate::types::DataSet).
 //!
 //! Aggregate semantics (nulls, all-null groups, casting) are documented in
-//! `Planning/REDUCE_AGG_SEMANTICS.md` at the repository root.
+//! `docs/REDUCE_AGG_SEMANTICS.md` at the repository root.
 
 use std::cmp::Ordering;
 use std::collections::HashMap;

@@ -71,7 +71,7 @@
 
 <p>This page collects <strong>Python</strong> snippets for the <code>rust-data-processing</code> package (PyO3 extension). The <a href="../../README.md">repository README</a> leads with a short Python quick start; the canonical API reference is <a href="../../python-wrapper/API.md"><code>python-wrapper/API.md</code></a>. Rust snippets live in <a href="../rust/README.md"><code>docs/rust/README.md</code></a>.</p>
 
-<p>Install (from PyPI after release, or from a checkout with <code>maturin develop</code> — see <a href="../../Planning/RELEASE_CHECKLIST.md"><code>Planning/RELEASE_CHECKLIST.md</code></a>):</p>
+<p>Install (from PyPI after release, or from a checkout with <code>maturin develop</code> — see <a href="../../docs/RELEASE_CHECKLIST.md"><code>Planning/RELEASE_CHECKLIST.md</code></a>):</p>
 
 <div class="pdoc-code codehilite">
 <pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>rust-data-processing
@@ -431,7 +431,7 @@
 </code></pre>
 </div>
 
-<p><strong>Semantics</strong> (nulls, all-null groups, <code>SUM</code> vs <code>MEAN</code>, casting): see <a href="../../Planning/REDUCE_AGG_SEMANTICS.md"><code>Planning/REDUCE_AGG_SEMANTICS.md</code></a>. More detail: <a href="../../python-wrapper/API.md"><code>python-wrapper/API.md</code></a> § <em>Processing pipelines</em>.</p>
+<p><strong>Semantics</strong> (nulls, all-null groups, <code>SUM</code> vs <code>MEAN</code>, casting): see <a href="../../docs/REDUCE_AGG_SEMANTICS.md"><code>Planning/REDUCE_AGG_SEMANTICS.md</code></a>. More detail: <a href="../../python-wrapper/API.md"><code>python-wrapper/API.md</code></a> § <em>Processing pipelines</em>.</p>
 
 <p>Join two DataFrames:</p>
 
@@ -469,7 +469,7 @@
 <li><code>processing_feature_wise_mean_std</code>, <code>processing_arg_max_row</code>, <code>processing_arg_min_row</code>, <code>processing_top_k_by_frequency</code></li>
 </ul>
 
-<p>Polars-backed equivalents: <code>DataFrame.reduce</code>, <code>DataFrame.feature_wise_mean_std</code>. <strong>Semantics</strong>: <a href="../../Planning/REDUCE_AGG_SEMANTICS.md"><code>Planning/REDUCE_AGG_SEMANTICS.md</code></a>.</p>
+<p>Polars-backed equivalents: <code>DataFrame.reduce</code>, <code>DataFrame.feature_wise_mean_std</code>. <strong>Semantics</strong>: <a href="../../docs/REDUCE_AGG_SEMANTICS.md"><code>Planning/REDUCE_AGG_SEMANTICS.md</code></a>.</p>
 
 <p>Example:</p>
 
@@ -646,7 +646,7 @@
 <li><a href="../../python-wrapper/README.md"><code>python-wrapper/README.md</code></a> — install and dev workflow  </li>
 <li><a href="../../python-wrapper/API.md"><code>python-wrapper/API.md</code></a> — full Python API  </li>
 <li><a href="../rust/README.md"><code>docs/rust/README.md</code></a> — Rust mirror of this page  </li>
-<li><a href="../../Planning/REDUCE_AGG_SEMANTICS.md"><code>Planning/REDUCE_AGG_SEMANTICS.md</code></a> — aggregate semantics</li>
+<li><a href="../../docs/REDUCE_AGG_SEMANTICS.md"><code>Planning/REDUCE_AGG_SEMANTICS.md</code></a> — aggregate semantics</li>
 </ul>
 </div>
 

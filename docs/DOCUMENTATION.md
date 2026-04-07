@@ -21,7 +21,7 @@ Rust steps: `cargo doc --no-deps --locked` → output copied to `site/rust/`.
 
 Python steps (in `python-wrapper/`): `uv sync --group dev`, `maturin develop --release`, then `pdoc -d google -o …/site/python rust_data_processing`.
 
-The landing page is committed at [`docs/landing/index.html`](../docs/landing/index.html) and copied to `site/index.html` during the assemble step.
+The landing page is committed at [`landing/index.html`](landing/index.html) and copied to `site/index.html` during the assemble step.
 
 ## One-time GitHub Pages setup (maintainers)
 

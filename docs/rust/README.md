@@ -394,7 +394,7 @@ let _out = DataFrame::from_dataset(&ds)?
     .collect()?;
 ```
 
-**Semantics** (nulls, all-null groups, `SUM` vs `MEAN`, casting): see [`Planning/REDUCE_AGG_SEMANTICS.md`](../../Planning/REDUCE_AGG_SEMANTICS.md). More API examples: [`API.md`](../../API.md) § *Processing pipelines*.
+**Semantics** (nulls, all-null groups, `SUM` vs `MEAN`, casting): see [`docs/REDUCE_AGG_SEMANTICS.md`](../REDUCE_AGG_SEMANTICS.md). More API examples: [`API.md`](../../API.md) § *Processing pipelines*.
 
 Join two DataFrames:
 
@@ -437,7 +437,7 @@ transformations using `rust_data_processing::processing`:
 - `arg_max_row` / `arg_min_row` — first row index where a column is max/min (ties: smallest index)
 - `top_k_by_frequency` — top‑\(k\) `(value, count)` pairs for label-style columns
 
-Polars-backed equivalents for whole-frame scalars: `pipeline::DataFrame::reduce`, `feature_wise_mean_std`. **Semantics**: [`Planning/REDUCE_AGG_SEMANTICS.md`](../../Planning/REDUCE_AGG_SEMANTICS.md).
+Polars-backed equivalents for whole-frame scalars: `pipeline::DataFrame::reduce`, `feature_wise_mean_std`. **Semantics**: [`docs/REDUCE_AGG_SEMANTICS.md`](../REDUCE_AGG_SEMANTICS.md).
 
 Example:
 

@@ -1,7 +1,7 @@
 # Publish the Rust crate to crates.io only when a version tag is pushed and that tag
 # points at a commit already on origin/main (merge to main first, then tag).
 #
-# Secret: CRATES_IO_TOKEN — crates.io API token (see Planning/How_TO_deploy.md).
+# Secret: CRATES_IO_TOKEN — crates.io API token (see docs/How_TO_deploy.md).
 
 name: Rust (crates.io release)
 

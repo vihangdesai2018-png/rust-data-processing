@@ -267,7 +267,7 @@
 //! ```
 //!
 //! For more end-to-end examples, see the repository `README.md` and `API.md` (processing / aggregates).
-//! Aggregate semantics: `Planning/REDUCE_AGG_SEMANTICS.md`.
+//! Aggregate semantics: `docs/REDUCE_AGG_SEMANTICS.md`.
 //!
 //! ### Reduce operations
 //!
