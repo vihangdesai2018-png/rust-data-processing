@@ -73,7 +73,7 @@ Generate the same HTML as CI locally: `./scripts/build_docs.ps1` (Rust only) or 
 
 ## Phase 1 scope (roadmap)
 
-The canonical Phase 1 roadmap checklist may live in your local **`Planning/`** folder (not tracked in git); this section is the README-friendly summary.
+Detailed Phase 1 / Phase 1a / Phase 2 planning trackers stay in your local **`Planning/`** folder (gitignored—never committed). Nothing in the repo removes those files; this section is the public README summary only.
 
 - [x] Polars-first delegation for ingestion + DataFrame-centric pipelines
 - [x] Polars-backed SQL support (default-on)
