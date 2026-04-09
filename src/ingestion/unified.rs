@@ -14,12 +14,13 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::error::{IngestionError, IngestionResult};
-use crate::types::{DataSet, Schema};
+use crate::types::{DataSet, Schema, Value};
 
 use super::observability::{
     IngestionContext, IngestionObserver, IngestionSeverity, IngestionStats,
 };
 use super::polars_bridge::{infer_schema_from_dataframe_lossy, polars_error_to_ingestion};
+use super::watermark::{apply_watermark_after_ingest, validate_watermark_config};
 use super::{csv, excel, json, parquet};
 use polars::prelude::*;
 
@@ -81,6 +82,12 @@ pub struct IngestionOptions {
     pub observer: Option<Arc<dyn IngestionObserver>>,
     /// Severity threshold at which `on_alert` is invoked.
     pub alert_at_or_above: IngestionSeverity,
+    /// Column name for incremental / high-water filtering (must be used with
+    /// [`Self::watermark_exclusive_above`]).
+    pub watermark_column: Option<String>,
+    /// Keep only rows where `watermark_column` is **strictly greater than** this value (same
+    /// [`crate::types::DataType`] as the column). Applied after ingest for file and DB sources.
+    pub watermark_exclusive_above: Option<Value>,
 }
 
 impl fmt::Debug for IngestionOptions {
@@ -90,6 +97,8 @@ impl fmt::Debug for IngestionOptions {
             .field("excel_sheet_selection", &self.excel_sheet_selection)
             .field("observer_set", &self.observer.is_some())
             .field("alert_at_or_above", &self.alert_at_or_above)
+            .field("watermark_column", &self.watermark_column)
+            .field("watermark_exclusive_above", &self.watermark_exclusive_above)
             .finish()
     }
 }
@@ -101,6 +110,8 @@ impl Default for IngestionOptions {
             excel_sheet_selection: ExcelSheetSelection::default(),
             observer: None,
             alert_at_or_above: IngestionSeverity::Critical,
+            watermark_column: None,
+            watermark_exclusive_above: None,
         }
     }
 }
@@ -220,6 +231,34 @@ impl Default for IngestionOptions {
 /// # }
 /// ```
 ///
+/// ## Incremental load (high-watermark on files)
+///
+/// Set [`IngestionOptions::watermark_column`] and [`IngestionOptions::watermark_exclusive_above`]
+/// to keep only rows where the watermark column is **strictly greater** than the floor value.
+/// Nulls in that column are dropped. The same options apply to
+/// [`ingest_from_db`](crate::ingestion::ingest_from_db) when the **`db_connectorx`** Cargo feature
+/// is enabled (filter runs after the query result is loaded).
+///
+/// ```no_run
+/// use rust_data_processing::ingestion::{ingest_from_path, IngestionOptions};
+/// use rust_data_processing::types::{DataType, Field, Schema, Value};
+///
+/// # fn main() -> Result<(), rust_data_processing::IngestionError> {
+/// let schema = Schema::new(vec![
+///     Field::new("id", DataType::Int64),
+///     Field::new("ts", DataType::Int64),
+/// ]);
+/// let opts = IngestionOptions {
+///     watermark_column: Some("ts".to_string()),
+///     watermark_exclusive_above: Some(Value::Int64(100)),
+///     ..Default::default()
+/// };
+/// let ds = ingest_from_path("tests/fixtures/watermark_events.csv", &schema, &opts)?;
+/// assert_eq!(ds.row_count(), 2);
+/// # Ok(())
+/// # }
+/// ```
+///
 /// ## Excel
 ///
 /// Example. Marked `no_run` so it is **compiled** by doctests
@@ -253,6 +292,8 @@ pub fn ingest_from_path(
     schema: &Schema,
     options: &IngestionOptions,
 ) -> IngestionResult<DataSet> {
+    validate_watermark_config(schema, options)?;
+
     let path = path.as_ref();
     let fmt = match options.format {
         Some(f) => f,
@@ -272,6 +313,8 @@ pub fn ingest_from_path(
             ingest_excel_dispatch(path, schema, &options.excel_sheet_selection)
         }
     };
+
+    let result = result.and_then(|ds| apply_watermark_after_ingest(ds, schema, options));
 
     if let Some(obs) = options.observer.as_ref() {
         match &result {

@@ -1,3 +1,16 @@
+<#
+.SYNOPSIS
+  Run Rust library and integration tests (`cargo test --lib` and `cargo test --tests`).
+
+.NOTES
+  Prefer **`scripts/run_unit_tests.ps1`** over typing `cargo test` by hand when builds feel
+  slow or flaky on Windows: this script enables **sccache** as `RUSTC_WRAPPER` when `sccache`
+  is on PATH, appends a full log to **`test_run.log`** at the repo root, disables rustup
+  update checks, and can **fall back to VsDevCmd** so `link.exe` and the SDK are available
+  when the default shell does not have the MSVC environment.
+
+  Example: `pwsh -File scripts/run_unit_tests.ps1`  (optional: `-Offline`, `-NoVsDevCmd`)
+#>
 param(
   [switch]$NoVsDevCmd,
   [switch]$Offline

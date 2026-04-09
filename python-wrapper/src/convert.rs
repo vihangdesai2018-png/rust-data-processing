@@ -141,6 +141,13 @@ pub(crate) fn ingestion_options_from_py(
     if let Some(v) = d.get_item("excel_sheet_selection")? {
         o.excel_sheet_selection = excel_selection_from_py(&v)?;
     }
+    if let Some(v) = d.get_item("watermark_column")? {
+        let s: String = v.extract()?;
+        o.watermark_column = Some(s);
+    }
+    if let Some(v) = d.get_item("watermark_exclusive_above")? {
+        o.watermark_exclusive_above = Some(value_from_py(&v)?);
+    }
     Ok(o)
 }
 

@@ -4590,6 +4590,7 @@ dependencies = [
  "calamine",
  "connectorx",
  "csv",
+ "glob",
  "parquet",
  "polars",
  "polars-sql",
@@ -4597,6 +4598,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+ "walkdir",
 ]
 
 [[package]]

@@ -24,23 +24,38 @@ use connectorx::source_router::SourceConn;
 use crate::error::{IngestionError, IngestionResult};
 use crate::types::{DataSet, DataType, Field, Schema, Value};
 
+use super::watermark::{apply_watermark_after_ingest, validate_watermark_config};
+use super::IngestionOptions;
+
 /// Ingest a SQL query from a database into a [`DataSet`], validating/casting into `schema`.
 ///
 /// Connection strings follow ConnectorX conventions, e.g.:
 /// - `postgresql://user:pass@host:5432/db?cxprotocol=binary`
 /// - `mysql://user:pass@host:3306/db`
-pub fn ingest_from_db(conn: &str, query: &str, schema: &Schema) -> IngestionResult<DataSet> {
+///
+/// When [`IngestionOptions::watermark_column`] and [`IngestionOptions::watermark_exclusive_above`]
+/// are set, rows are filtered **after** fetch (same semantics as [`super::ingest_from_path`]).
+pub fn ingest_from_db(
+    conn: &str,
+    query: &str,
+    schema: &Schema,
+    options: &IngestionOptions,
+) -> IngestionResult<DataSet> {
+    validate_watermark_config(schema, options)?;
     let batches = run_connectorx(conn, &[query.to_string()])?;
-    record_batches_to_dataset(&batches, schema)
+    let ds = record_batches_to_dataset(&batches, schema)?;
+    apply_watermark_after_ingest(ds, schema, options)
 }
 
 /// Convenience: infer a best-effort schema from the query result, then ingest.
 ///
 /// This uses a lossy mapping into `DataType::{Int64, Float64, Bool, Utf8}`.
-pub fn ingest_from_db_infer(conn: &str, query: &str) -> IngestionResult<DataSet> {
+pub fn ingest_from_db_infer(conn: &str, query: &str, options: &IngestionOptions) -> IngestionResult<DataSet> {
     let batches = run_connectorx(conn, &[query.to_string()])?;
     let schema = infer_schema_from_record_batches_lossy(&batches)?;
-    record_batches_to_dataset(&batches, &schema)
+    validate_watermark_config(&schema, options)?;
+    let ds = record_batches_to_dataset(&batches, &schema)?;
+    apply_watermark_after_ingest(ds, &schema, options)
 }
 
 fn run_connectorx(conn: &str, queries: &[String]) -> IngestionResult<Vec<RecordBatch>> {
@@ -242,11 +257,11 @@ fn arrow_value_to_value(
 
 #[cfg(test)]
 mod tests {
-    use super::ingest_from_db_infer;
+    use super::{ingest_from_db_infer, IngestionOptions};
 
     #[test]
     fn db_ingest_returns_error_for_invalid_connection_string() {
-        let err = ingest_from_db_infer("not a url", "SELECT 1").unwrap_err();
+        let err = ingest_from_db_infer("not a url", "SELECT 1", &IngestionOptions::default()).unwrap_err();
         assert!(err.to_string().contains("invalid db connection string"));
     }
 }

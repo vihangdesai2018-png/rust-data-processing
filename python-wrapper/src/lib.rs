@@ -6,6 +6,7 @@
 mod convert;
 mod observer_bridge;
 
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use convert::*;
@@ -14,8 +15,10 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use rust_data_processing::execution::ExecutionEngine;
 use rust_data_processing::ingestion::{
-    IngestionOptions, infer_schema_from_path, ingest_from_db, ingest_from_db_infer,
-    ingest_from_path, ingest_from_path_infer,
+    IngestionOptions, discover_hive_partitioned_files as discover_hive_partitioned_files_rs,
+    infer_schema_from_path, ingest_from_db, ingest_from_db_infer, ingest_from_path,
+    ingest_from_path_infer, parse_partition_segment as parse_partition_segment_rs,
+    paths_from_explicit_list as paths_from_explicit_list_rs, paths_from_glob as paths_from_glob_rs,
 };
 use rust_data_processing::outliers::{
     detect_outliers_dataset, render_outlier_report_json, render_outlier_report_markdown,
@@ -693,16 +696,31 @@ fn ingest_from_path_infer_py(
 }
 
 #[pyfunction(name = "ingest_from_db")]
-fn ingest_from_db_py(conn: &str, query: &str, schema: &Bound<'_, PyAny>) -> PyResult<PyDataSet> {
+#[pyo3(signature = (conn, query, schema, options=None))]
+fn ingest_from_db_py(
+    py: Python<'_>,
+    conn: &str,
+    query: &str,
+    schema: &Bound<'_, PyAny>,
+    options: Option<&Bound<'_, PyAny>>,
+) -> PyResult<PyDataSet> {
     let schema = schema_from_py(schema)?;
-    ingest_from_db(conn, query, &schema)
+    let opts = merge_ingestion_options(py, options)?;
+    ingest_from_db(conn, query, &schema, &opts)
         .map(PyDataSet::from_inner)
         .map_err(ingestion_err_to_py)
 }
 
 #[pyfunction(name = "ingest_from_db_infer")]
-fn ingest_from_db_infer_py(conn: &str, query: &str) -> PyResult<PyDataSet> {
-    ingest_from_db_infer(conn, query)
+#[pyo3(signature = (conn, query, options=None))]
+fn ingest_from_db_infer_py(
+    py: Python<'_>,
+    conn: &str,
+    query: &str,
+    options: Option<&Bound<'_, PyAny>>,
+) -> PyResult<PyDataSet> {
+    let opts = merge_ingestion_options(py, options)?;
+    ingest_from_db_infer(conn, query, &opts)
         .map(PyDataSet::from_inner)
         .map_err(ingestion_err_to_py)
 }
@@ -937,6 +955,71 @@ fn extension_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
+/// Discover files under a Hive-style `key=value` directory tree (see Rust `ingestion::partition` rustdoc).
+///
+/// Returns a list of dicts: `{"path": str, "segments": [{"key": str, "value": str}, ...]}`.
+#[pyfunction]
+#[pyo3(signature = (root, file_pattern=None))]
+fn discover_hive_partitioned_files(
+    py: Python<'_>,
+    root: &str,
+    file_pattern: Option<&str>,
+) -> PyResult<PyObject> {
+    let files = discover_hive_partitioned_files_rs(root, file_pattern).map_err(ingestion_err_to_py)?;
+    let list = PyList::empty(py);
+    for pf in files {
+        let d = PyDict::new(py);
+        d.set_item("path", pf.path.to_string_lossy().to_string())?;
+        let segs = PyList::empty(py);
+        for s in &pf.segments {
+            let seg = PyDict::new(py);
+            seg.set_item("key", &s.key)?;
+            seg.set_item("value", &s.value)?;
+            segs.append(seg)?;
+        }
+        d.set_item("segments", segs)?;
+        list.append(d)?;
+    }
+    Ok(list.into())
+}
+
+/// Expand a filesystem glob to existing file paths (sorted).
+#[pyfunction]
+fn paths_from_glob(py: Python<'_>, pattern: &str) -> PyResult<PyObject> {
+    let paths = paths_from_glob_rs(pattern).map_err(ingestion_err_to_py)?;
+    let list = PyList::empty(py);
+    for p in paths {
+        list.append(p.to_string_lossy().to_string())?;
+    }
+    Ok(list.into())
+}
+
+/// Validate paths exist as files; return them in order with duplicates removed (first wins).
+#[pyfunction]
+fn paths_from_explicit_list(py: Python<'_>, paths: Vec<String>) -> PyResult<PyObject> {
+    let pbs: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
+    let out = paths_from_explicit_list_rs(&pbs).map_err(ingestion_err_to_py)?;
+    let list = PyList::empty(py);
+    for p in out {
+        list.append(p.to_string_lossy().to_string())?;
+    }
+    Ok(list.into())
+}
+
+/// Parse a single path component as `key=value`, or return `None` if invalid.
+#[pyfunction]
+fn parse_partition_segment(py: Python<'_>, component: &str) -> PyResult<PyObject> {
+    match parse_partition_segment_rs(component) {
+        Some(s) => {
+            let d = PyDict::new(py);
+            d.set_item("key", s.key)?;
+            d.set_item("value", s.value)?;
+            Ok(d.into())
+        }
+        None => Ok(py.None()),
+    }
+}
+
 #[pymodule]
 fn _rust_data_processing(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyDataSet>()?;
@@ -965,6 +1048,10 @@ fn _rust_data_processing(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(processing_arg_min_row, m)?)?;
     m.add_function(wrap_pyfunction!(processing_top_k_by_frequency, m)?)?;
     m.add_function(wrap_pyfunction!(extension_version, m)?)?;
+    m.add_function(wrap_pyfunction!(discover_hive_partitioned_files, m)?)?;
+    m.add_function(wrap_pyfunction!(paths_from_glob, m)?)?;
+    m.add_function(wrap_pyfunction!(paths_from_explicit_list, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_partition_segment, m)?)?;
 
     Ok(())
 }

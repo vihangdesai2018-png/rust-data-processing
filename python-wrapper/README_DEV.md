@@ -5,7 +5,7 @@
 | Path | Role |
 |------|------|
 | `Cargo.toml` | PyO3 extension crate (`_rust_data_processing`); depends on `rust-data-processing` via `path = ".."` |
-| `src/lib.rs` | `#[pymodule]`, `DataSet`, `DataFrame`, `SqlContext`, `ExecutionEngine`, processing + SQL + reports |
+| `src/lib.rs` | `#[pymodule]`, `DataSet`, `DataFrame`, `SqlContext`, `ExecutionEngine`, processing + SQL + reports + partition discovery |
 | `src/convert.rs` | Shared Python ↔ Rust parsing (`schema`, validation spec, profile/outlier options, …) |
 | `pyproject.toml` | PEP 517 build (`maturin`), project metadata, **uv** `dependency-groups.dev` |
 | `rust_data_processing/__init__.py` | Stable imports + JSON helpers (`profile_dataset`, `transform_apply`, …) |
@@ -68,7 +68,7 @@ Without it, `ingest_from_db` / `ingest_from_db_infer` are still exported but ret
 
 ### Ingestion observers (Python)
 
-Path-based ingest `options` may include `observer` (`on_success`, `on_failure`, `on_alert`) and `alert_at_or_above`, matching `IngestionOptions` in Rust. See `API.md`.
+Path-based ingest `options` may include `watermark_column` / `watermark_exclusive_above`, `observer` (`on_success`, `on_failure`, `on_alert`), and `alert_at_or_above`, matching `IngestionOptions` in Rust. Hive partition helpers (`discover_hive_partitioned_files`, …) are exported at package root. See `API.md`.
 
 ## Versioning
 

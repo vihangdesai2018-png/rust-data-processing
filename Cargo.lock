@@ -4687,6 +4687,7 @@ dependencies = [
  "connectorx",
  "criterion",
  "csv",
+ "glob",
  "parquet",
  "polars",
  "polars-sql",
@@ -4696,6 +4697,7 @@ dependencies = [
  "serde_arrow",
  "serde_json",
  "thiserror 2.0.18",
+ "walkdir",
 ]
 
 [[package]]

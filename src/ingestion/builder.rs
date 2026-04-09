@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::error::IngestionResult;
-use crate::types::{DataSet, Schema};
+use crate::types::{DataSet, Schema, Value};
 
 use super::observability::IngestionObserver;
 use super::observability::IngestionSeverity;
@@ -56,6 +56,18 @@ impl IngestionOptionsBuilder {
         self
     }
 
+    /// High-water column for incremental loads (use with [`Self::watermark_exclusive_above`]).
+    pub fn watermark_column(mut self, column: impl Into<String>) -> Self {
+        self.options.watermark_column = Some(column.into());
+        self
+    }
+
+    /// Keep rows strictly greater than this value on `watermark_column` (after ingest).
+    pub fn watermark_exclusive_above(mut self, v: Value) -> Self {
+        self.options.watermark_exclusive_above = Some(v);
+        self
+    }
+
     /// Build the configured [`IngestionOptions`].
     pub fn build(self) -> IngestionOptions {
         self.options
@@ -88,18 +100,26 @@ mod tests {
         assert_eq!(built.excel_sheet_selection, direct.excel_sheet_selection);
         assert_eq!(built.alert_at_or_above, direct.alert_at_or_above);
         assert_eq!(built.observer.is_some(), direct.observer.is_some());
+        assert_eq!(built.watermark_column, direct.watermark_column);
+        assert_eq!(built.watermark_exclusive_above, direct.watermark_exclusive_above);
     }
 
     #[test]
     fn builder_sets_fields() {
+        use crate::types::Value;
+
         let built = IngestionOptionsBuilder::new()
             .format(IngestionFormat::Csv)
             .excel_sheet_selection(ExcelSheetSelection::AllSheets)
             .alert_at_or_above(IngestionSeverity::Error)
+            .watermark_column("ts")
+            .watermark_exclusive_above(Value::Int64(0))
             .build();
 
         assert_eq!(built.format, Some(IngestionFormat::Csv));
         assert_eq!(built.excel_sheet_selection, ExcelSheetSelection::AllSheets);
         assert_eq!(built.alert_at_or_above, IngestionSeverity::Error);
+        assert_eq!(built.watermark_column.as_deref(), Some("ts"));
+        assert_eq!(built.watermark_exclusive_above, Some(Value::Int64(0)));
     }
 }

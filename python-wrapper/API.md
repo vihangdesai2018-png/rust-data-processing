@@ -50,7 +50,37 @@ Bindings for the [`rust-data-processing`](../README.md) crate. Types stay in **c
 
 **Database data without the `db` feature:** You only need **`--features db`** if you want **`ingest_from_db` / `ingest_from_db_infer`** (ConnectorX inside the native extension). If you already use **psycopg2**, **SQLAlchemy**, **asyncpg**, or any other Python DB API, run your query in Python, convert rows to `list[list]` aligned to a [schema](#conventions), and use **`DataSet(schema, rows)`**. Profiling, validation, SQL-on-`DataSet`, and pipelines work the same; you are not required to enable `db`.
 
-**`options`**: optional `dict` — `format` (`"csv"`, `"json"`, `"parquet"`, `"excel"`, …), optional `excel_sheet_selection` (`mode`, `name`, `names` — see [README](README.md)), plus **observability** (below).
+**`options`**: optional `dict` — `format` (`"csv"`, `"json"`, `"parquet"`, `"excel"`, …), optional `excel_sheet_selection` (`mode`, `name`, `names` — see [README](README.md)), optional **incremental / watermark** keys (below), plus **observability** (below).
+
+### Incremental / watermark (`options` dict)
+
+Same semantics as Rust `IngestionOptions`: after the file (or DB result) is loaded, keep only rows where the watermark column is **strictly greater** than the floor value; nulls in that column are dropped. Both keys must be set together.
+
+| Key | Type | Meaning |
+|-----|------|---------|
+| `watermark_column` | `str` | Schema column name used as the high-watermark key. |
+| `watermark_exclusive_above` | scalar | Rows must be strictly above this value (`int` / `float` / `bool` / `str` — must match column type). |
+
+```python
+rdp.ingest_from_path(
+    "events.csv",
+    schema,
+    {"watermark_column": "ts", "watermark_exclusive_above": 100},
+)
+```
+
+With **`ingest_from_db` / `ingest_from_db_infer`**, the same keys apply when the extension is built with the **`db`** feature (ConnectorX); filtering runs after the query result is materialized.
+
+### Partition discovery (Hive-style layouts)
+
+| Function | Returns |
+|----------|---------|
+| `discover_hive_partitioned_files(root, file_pattern=None)` | `list[dict]` — each `{"path": str, "segments": [{"key": str, "value": str}, ...]}` |
+| `paths_from_glob(pattern)` | `list[str]` — existing files matching the glob (sorted) |
+| `paths_from_explicit_list(paths)` | `list[str]` — existing files only; deduped, order preserved |
+| `parse_partition_segment(component)` | `dict` `\| None` — `{"key", "value"}` for a `key=value` segment, else `None` |
+
+Use **forward slashes** in `file_pattern` (matched against paths relative to `root`) for portability, e.g. `"**/*.csv"`.
 
 ### Ingestion observability (`options` dict)
 
