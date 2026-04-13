@@ -108,6 +108,8 @@ Detailed Phase 1 / Phase 1a / Phase 2 planning trackers stay in your local `**Pl
 
 Bindings live under `**python-wrapper/`** (**PyO3** + **maturin** + **uv**). User-facing docs: `**python-wrapper/README.md`**, `**python-wrapper/API.md**`, `**python-wrapper/README_DEV.md**`. The native module calls this crate; Polars stays on the Rust side.
 
+**JVM / Java:** not shipped yet; a **Maven-resolvable** Java layer over the same Rust core is **planned for Phase 3** so releases can stay focused on Rust and Python first. See **[CHANGELOG.md](CHANGELOG.md)** (Unreleased → Planned).
+
 **Rust** examples (ingestion, DataFrame/SQL, transforms, profiling, execution, benchmarks): `[docs/rust/README.md](docs/rust/README.md)`.
 
 ## What data can be consumed? (Epic 1 / Stories 1.1–1.2)

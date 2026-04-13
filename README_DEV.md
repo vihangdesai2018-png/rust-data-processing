@@ -4,7 +4,7 @@ This doc is for contributors working inside the repo. Keep it in sync with the a
 
 ### Local planning (`Planning/` — gitignored)
 
-The entire **`Planning/`** directory is listed in **`.gitignore`**. Keep **Phase 1**, **Phase 1a**, and **Phase 2** material there locally—e.g. **`PHASE1_PLAN.md`**, **`PHASE1A_PLAN.md`**, **`Phase2_plan.md`**, **`PHASE2_EPICS.md`**, release drafts, or story checklists. Git does not track that folder and no workflow deletes it; it is only for your machine.
+The entire **`Planning/`** directory is listed in **`.gitignore`**. Keep **Phase 1**, **Phase 1a**, **Phase 2**, and **Phase 3** material there locally—e.g. **`PHASE1_PLAN.md`**, **`PHASE1A_PLAN.md`**, **`Phase2_plan.md`**, **`PHASE2_EPICS.md`**, **`PHASE3_EPICS.md`**, release drafts, or story checklists. Git does not track that folder and no workflow deletes it; it is only for your machine.
 
 Operational docs that **are** shared with the repo (release checklist, deploy steps, aggregate semantics, CI policy) live under **`docs/`** and are separate from private planning notes.
 

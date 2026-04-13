@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Planned
+
+- **JVM / Java / Maven:** first-class bindings (native library + **Maven Central** artifact, cross-platform CI) are **Phase 3** scope, not Phase 2, so Phase 2 can focus on Rust + Python with **smaller releases** and faster cycles. Follow releases and notes here for when Java support lands.
+
 ### Fixed
 
 - **docs.rs**: add `[package.metadata.docs.rs]` with `cargo-args = ["-j", "1"]` so the documentation build is less likely to run out of memory while compiling Polars and the rest of the dependency graph (see `Cargo.toml` comments).
