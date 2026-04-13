@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **docs.rs**: add `[package.metadata.docs.rs]` with `cargo-args = ["-j", "1"]` so the documentation build is less likely to run out of memory while compiling Polars and the rest of the dependency graph (see `Cargo.toml` comments).
 
+## [0.1.6] - 2026-04-13
+
+### Changed
+
+- (summarize this release)
+
 ## [0.1.5] - 2026-04-02
 
 ### Changed
@@ -57,6 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `profiling`, `validation`, `outliers`, `transform` (TransformSpec), `cdc` boundary types.
 - Optional `db_connectorx` for DB → Arrow → `DataSet` ingestion.
 
+[0.1.6]: https://github.com/vihangdesai2018-png/rust-data-processing/releases/tag/v0.1.6
 [0.1.5]: https://github.com/vihangdesai2018-png/rust-data-processing/releases/tag/v0.1.5
 [0.1.4]: https://github.com/vihangdesai2018-png/rust-data-processing/releases/tag/v0.1.4
 [0.1.3]: https://github.com/vihangdesai2018-png/rust-data-processing/releases/tag/v0.1.3
