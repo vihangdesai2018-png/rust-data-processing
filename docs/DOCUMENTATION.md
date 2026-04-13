@@ -21,6 +21,8 @@ Rust steps: `cargo doc --no-deps --locked` → output copied to `site/rust/`.
 
 Python steps (in `python-wrapper/`): `uv sync --group dev`, `maturin develop --release`, then `pdoc -d google -o …/site/python rust_data_processing`.
 
+**Images:** Markdown included via `rust_data_processing.examples` lives in [`docs/python/README.md`](python/README.md) and may reference [`docs/images/`](images/) (for example the Phase 1 scope infographic). After pdoc runs, CI copies `docs/images/` into `site/python/images/` and `site/images/` so `../images/...` links work for both `python/examples.html` and `python/rust_data_processing/examples.html`.
+
 The landing page is committed at [`landing/index.html`](landing/index.html) and copied to `site/index.html` during the assemble step.
 
 ## One-time GitHub Pages setup (maintainers)

@@ -1,6 +1,10 @@
 # rust-data-processing
 
+![Phase 1 scope: sources → rust-data-processing → Python / optional AI & ML surfaces](./docs/images/phase-1-scope-overview.png)
+
 **Rust** library: schema-first ingestion (CSV, JSON, Parquet, Excel with Cargo features) into an in-memory [`DataSet`](https://docs.rs/rust-data-processing/latest/rust_data_processing/types/struct.DataSet.html), plus Polars-backed pipelines, optional SQL, profiling, validation, and map/reduce-style processing.
+
+*Infographic: Phase 1 — single-node, library-first flow (ingest → `DataSet`, pipelines, SQL, profile, validate, outliers, transforms, parallel execution, PyO3 bindings, optional chatbot / notebook story).*
 
 This file is the **crate README** shown on [crates.io](https://crates.io/crates/rust-data-processing) and at the top of [docs.rs](https://docs.rs/rust-data-processing) (Rust-only). The [repository’s `README.md`](https://github.com/vihangdesai2018-png/rust-data-processing/blob/main/README.md) is the full monorepo overview (including Python).
 

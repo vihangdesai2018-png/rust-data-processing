@@ -49,6 +49,14 @@ New-Item -ItemType Directory -Path $pyOut | Out-Null
 & uv run pdoc -d google -o $pyOut rust_data_processing rust_data_processing.examples
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+$imgSrc = Join-Path $repoRoot 'docs\images'
+$pyImages = Join-Path $pyOut 'images'
+$siteImages = Join-Path $repoRoot '_site\images'
+New-Item -ItemType Directory -Force -Path $pyImages | Out-Null
+New-Item -ItemType Directory -Force -Path $siteImages | Out-Null
+Copy-Item -Path (Join-Path $imgSrc '*') -Destination $pyImages -Recurse -Force
+Copy-Item -Path (Join-Path $imgSrc '*') -Destination $siteImages -Recurse -Force
+
 $nested = Join-Path $pyOut 'rust_data_processing/examples.html'
 $flat = Join-Path $pyOut 'examples.html'
 if (Test-Path $nested) {

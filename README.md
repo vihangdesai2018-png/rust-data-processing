@@ -267,3 +267,12 @@ SPDX-License-Identifier: `MIT OR Apache-2.0`
 ## Publishing to crates.io
 
 Maintainers: see [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md) and [`docs/How_TO_deploy.md`](docs/How_TO_deploy.md). After the first successful `cargo publish`, API docs appear on [docs.rs](https://docs.rs/rust-data-processing) for the published version.
+
+
+#Lib Info 
+
+Runnable examples + docs: Python examples [https://lnkd.in/emVFbbja](https://lnkd.in/emVFbbja)
+GitHub: [https://lnkd.in/eQ6JkG3A](https://lnkd.in/eQ6JkG3A)
+PyPI: [https://lnkd.in/erU7pnq3](https://lnkd.in/erU7pnq3)
+crates.io: [https://lnkd.in/ezt6wU6B](https://lnkd.in/ezt6wU6B)
+Report issues: [https://lnkd.in/e9FAvqz3](https://lnkd.in/e9FAvqz3)

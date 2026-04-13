@@ -62,6 +62,15 @@ jobs:
           uv run pdoc -d google -o "${GITHUB_WORKSPACE}/site/python" \
             rust_data_processing rust_data_processing.examples
 
+      # pdoc emits relative ../images/... from docs/python/README.md; mirror assets so both
+      # site/python/rust_data_processing/examples.html and site/python/examples.html resolve images.
+      - name: Copy doc images into Pages site
+        run: |
+          set -euo pipefail
+          mkdir -p site/python/images site/images
+          cp -a docs/images/. site/python/images/
+          cp -a docs/images/. site/images/
+
       - name: Verify pdoc wrote examples page
         run: |
           set -euo pipefail
