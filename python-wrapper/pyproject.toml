@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "rust-data-processing"
-version = "0.1.6"
+version = "0.1.7"
 description = "Python bindings for rust-data-processing: schema-first CSV/JSON/Parquet/Excel ingestion into an in-memory DataSet."
 readme = "README_PYPI.md"
 requires-python = ">=3.10"
@@ -45,8 +45,9 @@ pythonpath = ["."]
 [tool.maturin]
 module-name = "rust_data_processing._rust_data_processing"
 python-source = "."
-# README_PYPI.md references ./docs/images/ for the Phase 1 infographic (PyPI long description).
-include = ["docs/images/*.png"]
+# PyPI long description: README_PYPI.md uses a raw.githubusercontent.com image URL so sdist/wheel
+# does not duplicate repo-root `docs/images/` (maturin + `cargo package` would otherwise hit the same
+# `docs/images/*.png` path twice). The canonical asset is `docs/images/` at the repository root.
 # Optional wheel builds with DB: set `features = ["db"]` here or pass `maturin build --features db`.
 # Optional abi3 (stable Python ABI): enable PyO3 `abi3-py310` (or similar) in Cargo.toml and set
 # `py-limited-api = true` here — fewer wheels, stricter PyO3 API limits. See How_TO_deploy.md.

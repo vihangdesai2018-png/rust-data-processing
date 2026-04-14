@@ -1,6 +1,6 @@
 # rust-data-processing
 
-![Phase 1 scope: sources → rust-data-processing → Python / optional AI & ML surfaces](./docs/images/phase-1-scope-overview.png)
+![Phase 1 scope: sources → rust-data-processing → Python / optional AI & ML surfaces](https://raw.githubusercontent.com/vihangdesai2018-png/rust-data-processing/main/docs/images/phase-1-scope-overview.png)
 
 Python bindings for the **[rust-data-processing](https://docs.rs/rust-data-processing)** crate: schema-first ingestion from CSV, JSON, Parquet, and Excel into an in-memory **`DataSet`**, with profiling, validation, Polars-backed pipelines, and SQL.
 

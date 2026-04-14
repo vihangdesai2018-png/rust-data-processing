@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **docs.rs**: Fix rustdoc intra-doc links that become hard errors when documentation warnings are denied (`Some(None)`-style links, link to a private helper, redundant `DataSet` target, ambiguous `reduce`). Republish so docs.rs can rebuild (0.1.6 docs build failed).
 
+- **PyPI / maturin**: Remove duplicate `docs/images/phase-1-scope-overview.png` under `python-wrapper/` and drop `[tool.maturin] include` for PNGs. The sdist merged the repo-root image (from `cargo package`) with the wrapper copy and failed with “was already added … can't add it from … python-wrapper/docs/images/”. The PyPI README now uses a **raw.githubusercontent.com** URL for that image; canonical file stays at **`docs/images/`** in the repo.
+
 ## [0.1.6] - 2026-04-13
 
 ### Changed
