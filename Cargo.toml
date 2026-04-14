@@ -1,6 +1,6 @@
 [package]
 name = "rust-data-processing"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2024"
 rust-version = "1.85"
 description = "Schema-first ingestion (CSV, JSON, Parquet, Excel) into an in-memory DataSet, plus Polars-backed pipelines, SQL, profiling, validation, and map/reduce-style processing."
@@ -23,8 +23,8 @@ exclude = [
 ]
 
 # docs.rs builds the crate in a memory- and time-bounded environment. Polars + Arrow pull a large
-# dependency graph; limiting parallel rustc jobs avoids OOM kills on the builder. If 0.1.5 failed
-# with no clear compiler error in the log, republish with this block present (e.g. 0.1.6).
+# dependency graph; limiting parallel rustc jobs avoids OOM kills on the builder. Also ensure
+# `cargo doc` is clean under `RUSTDOCFLAGS=-D warnings` (intra-doc links, etc.).
 # See https://docs.rs/about/metadata and https://docs.rs/about/builds
 [package.metadata.docs.rs]
 cargo-args = ["-j", "1"]

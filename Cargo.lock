@@ -4680,7 +4680,7 @@ dependencies = [
 
 [[package]]
 name = "rust-data-processing"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "arrow",
  "calamine",

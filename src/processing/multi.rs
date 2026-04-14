@@ -1,4 +1,4 @@
-//! Multi-column and row-index reductions over a [`DataSet`](crate::types::DataSet).
+//! Multi-column and row-index reductions over a [`DataSet`].
 //!
 //! Aggregate semantics (nulls, all-null groups, casting) are documented in
 //! `docs/REDUCE_AGG_SEMANTICS.md` at the repository root.
@@ -78,8 +78,8 @@ fn cmp_non_null_values(a: &Value, b: &Value) -> Option<Ordering> {
     }
 }
 
-/// Returns [`None`] if `column` is not in the schema. Otherwise [`Some(None)`] if there is no
-/// non-null comparable value, or [`Some(Some((row_index, value)))`] for the **first** row
+/// Returns [`None`] if `column` is not in the schema. Otherwise `Some(None)` if there is no
+/// non-null comparable value, or `Some(Some((row_index, value)))` for the **first** row
 /// attaining the maximum (stable tie-break).
 pub fn arg_max_row(dataset: &DataSet, column: &str) -> Option<Option<(usize, Value)>> {
     let idx = dataset.schema.index_of(column)?;
@@ -147,7 +147,7 @@ fn value_sort_key(v: &Value) -> String {
 }
 
 /// Non-null value frequencies; returns the top `k` pairs by count (desc), breaking ties by
-/// [`value_sort_key`] ascending. `k == 0` yields an empty vector.
+/// `value_sort_key` ascending. `k == 0` yields an empty vector.
 ///
 /// Returns [`None`] if the column is not in the schema.
 pub fn top_k_by_frequency(dataset: &DataSet, column: &str, k: usize) -> Option<Vec<(Value, i64)>> {

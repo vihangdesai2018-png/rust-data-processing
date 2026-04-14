@@ -388,7 +388,7 @@ impl DataFrame {
 
     /// Reduce a column using a built-in [`ReduceOp`] (Polars-backed).
     ///
-    /// Returns `None` if `column` does not exist (aligned with [`crate::processing::reduce`]).
+    /// Returns `None` if `column` does not exist (aligned with [`crate::processing::reduce()`]).
     pub fn reduce(mut self, column: &str, op: ReduceOp) -> IngestionResult<Option<Value>> {
         let df_schema = self
             .lf
